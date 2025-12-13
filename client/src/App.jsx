@@ -59,6 +59,8 @@ function App() {
     label: "",
     status: STATUS_OPTIONS[0].value
   });
+  const [showPropertyForm, setShowPropertyForm] = useState(false);
+  const [showUnitForm, setShowUnitForm] = useState(false);
   const [activeTab, setActiveTab] = useState(1);
 
   const fetchProperties = useCallback(async (nextSelectedId = null) => {
@@ -115,6 +117,7 @@ function App() {
 
   useEffect(() => {
     setSelectedUnit(null);
+    setShowUnitForm(false);
   }, [selectedPhaseId]);
 
   const selectedPhase = useMemo(
@@ -151,29 +154,40 @@ function App() {
     }
   ];
 
-  const collapsedWidth = "72px";
-  const propertyWidth = activeTab === 1 ? "260px" : collapsedWidth;
-  const phaseWidth = activeTab === 2 ? "260px" : collapsedWidth;
-  const detailsWidth = activeTab === 3 ? "1fr" : collapsedWidth;
-  const mainGridStyle = {
-    "--prop-width": propertyWidth,
-    "--phase-width": phaseWidth,
-    "--details-width": detailsWidth
+  const mainGridStyle = {};
+  const propertyPanelClass = `properties-panel ${activeTab === 1 ? "panel-active" : "panel-active expanding-panel"}`;
+  const phasePanelClass = `phase-panel panel-hidden`;
+  const detailPanelClass = `details-panel panel-hidden`;
+
+  const panelTabProps = (tabId, enabled = true) => {
+    if (activeTab === tabId || !enabled) {
+      return {};
+    }
+    return {
+      role: "button",
+      tabIndex: 0,
+      onClick: () => setActiveTab(tabId),
+      onKeyDown: (event) => {
+        if (event.key === "Enter" || event.key === " " || event.key === "Spacebar") {
+          event.preventDefault();
+          setActiveTab(tabId);
+        }
+      }
+    };
   };
-  const propertyPanelClass = `properties-panel ${activeTab === 1 ? "panel-active" : "panel-collapsed"}`;
-  const phasePanelClass = `phase-panel ${activeTab === 2 ? "panel-active" : "panel-collapsed"}`;
-  const detailPanelClass = `details-panel ${activeTab === 3 ? "panel-active" : "panel-collapsed"}`;
 
   useEffect(() => {
     if (!selectedProperty) {
       setActiveTab(1);
     }
+    setShowPropertyForm(false);
   }, [selectedProperty]);
 
   useEffect(() => {
     if (selectedProperty && !selectedPhase) {
       setActiveTab(2);
     }
+    setShowUnitForm(false);
   }, [selectedProperty, selectedPhase]);
 
   const handlePropertySubmit = async (event) => {
@@ -287,8 +301,8 @@ function App() {
     <div className="app-shell">
       <header>
         <div>
-          <p className="eyebrow">ATT CRM</p>
-          <h1>Project status at a glance</h1>
+          <p className="eyebrow">Eurovilla Group</p>
+          <h1 className="page-title">Project status</h1>
         </div>
       </header>
 
@@ -311,309 +325,329 @@ function App() {
       </div>
 
       <main className="main-grid" style={mainGridStyle}>
-        <section className={propertyPanelClass}>
+        <section
+          key={activeTab}
+          className={`${propertyPanelClass} panel-grow`}
+          {...panelTabProps(1, true)}
+        >
           <div
-            className="panel-collapsed-indicator"
-            role="button"
-            tabIndex={activeTab === 1 ? -1 : 0}
-            onClick={() => setActiveTab(1)}
-            onKeyDown={(event) => {
-              if (event.key === "Enter" || event.key === " ") {
-                event.preventDefault();
-                setActiveTab(1);
-              }
-            }}
+            key={`${activeTab}-${selectedPhaseId ?? "none"}`}
+            className={`panel-content panel-step ${
+              activeTab === 1 ? "property-enter" : activeTab === 2 ? "phase-enter" : "unit-enter"
+            }`}
           >
-            <span>Properties</span>
-            <strong>{selectedProperty ? selectedProperty.name : "Select a property"}</strong>
-          </div>
-          <div className="panel-content">
-            <div className="panel-header">
-            <h2>Properties</h2>
-            {loading && <span className="pill">Loading…</span>}
-          </div>
-          {error && <p className="error">{error}</p>}
-          <ul className="property-list">
-            {properties.map((property) => (
-              <li key={property.id}>
-                <button
-                  type="button"
-                  className={property.id === selectedPropertyId ? "property active" : "property"}
-                  onClick={() => {
-                    setSelectedPropertyId(property.id);
-                    setSelectedUnit(null);
-                    setActiveTab(2);
-                  }}
-                >
-                  <span
-                    className="delete-icon property-delete-icon"
-                    role="button"
-                    aria-label={`Delete ${property.name}`}
-                    onClick={(event) => {
-                      event.stopPropagation();
-                      void handlePropertyDelete(property.id);
-                    }}
-                    onKeyDown={(event) => {
-                      if (event.key === "Enter" || event.key === " " || event.key === "Spacebar") {
-                        event.preventDefault();
-                        event.stopPropagation();
-                        void handlePropertyDelete(property.id);
-                      }
-                    }}
-                    tabIndex={0}
-                  >
-                    ×
-                  </span>
-                  <p className="eyebrow">#{property.id}</p>
-                  <p className="property-name">{property.name}</p>
-                  <div className="property-line">
-                    <p className="property-meta">{property.location}</p>
-                    <PropertyTypeBadge type={property.type} />
-                  </div>
-                </button>
-              </li>
-            ))}
-            {!properties.length && !loading && <p>No properties yet.</p>}
-          </ul>
-          </div>
-        </section>
+            {activeTab === 1 && (
+              <>
+                <div className="panel-header">
+                  <h2>Properties</h2>
+                  {loading && <span className="pill">Loading…</span>}
+                </div>
+                {error && <p className="error">{error}</p>}
+                <ul className="property-list">
+                  {properties.map((property) => (
+                    <li key={property.id}>
+                      <button
+                        type="button"
+                        className={property.id === selectedPropertyId ? "property active" : "property"}
+                        onClick={() => {
+                          setSelectedPropertyId(property.id);
+                          setSelectedUnit(null);
+                          setActiveTab(2);
+                        }}
+                      >
+                        <span
+                          className="delete-icon property-delete-icon"
+                          role="button"
+                          aria-label={`Delete ${property.name}`}
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            void handlePropertyDelete(property.id);
+                          }}
+                          onKeyDown={(event) => {
+                            if (event.key === "Enter" || event.key === " " || event.key === "Spacebar") {
+                              event.preventDefault();
+                              event.stopPropagation();
+                              void handlePropertyDelete(property.id);
+                            }
+                          }}
+                          tabIndex={0}
+                        >
+                          ×
+                        </span>
+                        <p className="eyebrow">#{property.id}</p>
+                        <p className="property-name">{property.name}</p>
+                        <div className="property-line">
+                          <p className="property-meta">{property.location}</p>
+                          <PropertyTypeBadge type={property.type} />
+                        </div>
+                      </button>
+                    </li>
+                  ))}
+                  {!properties.length && !loading && <p>No properties yet.</p>}
+                </ul>
 
-        <section className={phasePanelClass}>
-          <div className="panel-header">
-            <h2>Phases</h2>
-          </div>
-          {selectedProperty ? (
-            selectedProperty.phases?.length ? (
-              <div className="phase-tabs">
-                {selectedProperty.phases.map((phase) => (
-                  <button
-                    key={phase.id}
-                    type="button"
-                    className={`phase-tab ${phase.id === selectedPhaseId ? "active" : ""}`}
-                    onClick={() => {
-                      setSelectedPhaseId(phase.id);
-                      setActiveTab(3);
-                    }}
-                  >
-                    <span>{phase.name}</span>
-                    <span className="eyebrow">{phase.units?.length ?? 0} units</span>
-                  </button>
-                ))}
-              </div>
-            ) : (
-              <p className="property-meta">This property has no phases yet.</p>
-            )
-          ) : (
-            <p className="property-meta">Select a property to view its phases.</p>
-          )}
-        </section>
+                <div className="inline-form-wrapper">
+                  {showPropertyForm ? (
+                    <article className="form-card inline-form">
+                      <div className="panel-header">
+                        <div>
+                          <p className="eyebrow">New record</p>
+                          <h3>Add property</h3>
+                        </div>
+                      </div>
+                      <form onSubmit={handlePropertySubmit} className="stacked-form">
+                        <label>
+                          <span>Name</span>
+                          <input
+                            type="text"
+                            value={propertyForm.name}
+                            onChange={(event) =>
+                              setPropertyForm((prev) => ({ ...prev, name: event.target.value }))
+                            }
+                            placeholder="e.g., East Village Row"
+                            required
+                          />
+                        </label>
+                        <label>
+                          <span>Location</span>
+                          <input
+                            type="text"
+                            value={propertyForm.location}
+                            onChange={(event) =>
+                              setPropertyForm((prev) => ({ ...prev, location: event.target.value }))
+                            }
+                            placeholder="City, State"
+                            required
+                          />
+                        </label>
+                        <label>
+                          <span>Type</span>
+                          <select
+                            value={propertyForm.type}
+                            onChange={(event) =>
+                              setPropertyForm((prev) => ({ ...prev, type: event.target.value }))
+                            }
+                          >
+                            {PROPERTY_TYPES.map((option) => (
+                              <option key={option.value} value={option.value}>
+                                {option.label}
+                              </option>
+                            ))}
+                          </select>
+                        </label>
+                        {propertyFormError && <p className="form-error">{propertyFormError}</p>}
+                        <div className="form-actions">
+                          <button type="button" className="ghost-btn" onClick={() => setShowPropertyForm(false)}>
+                            Cancel
+                          </button>
+                          <button type="submit" className="primary-btn">
+                            Save property
+                          </button>
+                        </div>
+                      </form>
+                    </article>
+                  ) : (
+                    <button className="floating-btn" type="button" onClick={() => setShowPropertyForm(true)}>
+                      +
+                      <span className="sr-only">Add property</span>
+                    </button>
+                  )}
+                </div>
+              </>
+            )}
 
-        <section className="details-panel">
-          {selectedProperty ? (
-            <>
-              <div className="panel-header">
-                <div>
-                  <p className="eyebrow">Active property</p>
-                  <h2>{selectedProperty.name}</h2>
-                  <div className="property-line">
-                    <p className="property-meta">{selectedProperty.location}</p>
-                    <PropertyTypeBadge type={selectedProperty.type} />
+            {activeTab === 2 && (
+              <>
+                <div className="panel-header">
+                  <h2>Phases</h2>
+                </div>
+                {selectedProperty ? (
+                  selectedProperty.phases?.length ? (
+                    <div className="phase-tabs">
+                      {selectedProperty.phases.map((phase) => (
+                        <button
+                          key={phase.id}
+                          type="button"
+                          className={`phase-tab ${phase.id === selectedPhaseId ? "active" : ""}`}
+                          onClick={() => {
+                            setSelectedPhaseId(phase.id);
+                            setActiveTab(3);
+                          }}
+                        >
+                          <span>{phase.name}</span>
+                          <span className="eyebrow">{phase.units?.length ?? 0} units</span>
+                        </button>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="property-meta">This property has no phases yet.</p>
+                  )
+                ) : (
+                  <p className="property-meta">Select a property to view its phases.</p>
+                )}
+              </>
+            )}
+
+            {activeTab === 3 && (
+              <>
+                <div className="panel-header">
+                  <div>
+                    <p className="eyebrow">Active property</p>
+                    <h2>{selectedProperty?.name}</h2>
+                    <div className="property-line">
+                      <p className="property-meta">{selectedProperty?.location}</p>
+                      <PropertyTypeBadge type={selectedProperty?.type} />
+                    </div>
                   </div>
                 </div>
-              </div>
-              {selectedPhase ? (
-                <div className="phases">
-                  <article key={selectedPhase.id} className="phase-card">
-                    <div className="phase-card-header">
-                      <h3>{selectedPhase.name}</h3>
-                      <p className="property-meta">{selectedPhase.units?.length ?? 0} units</p>
-                    </div>
-                    <table>
-                      <thead>
-                        <tr>
-                          <th>Unit</th>
-                          <th>Status</th>
-                          <th>Milestones</th>
-                          <th aria-label="Actions"></th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {selectedPhase.units?.map((unit) => (
-                          <tr
-                            key={unit.id}
-                            className={selectedUnit === unit.id ? "active-row" : undefined}
-                            onClick={() => setSelectedUnit(unit.id)}
-                          >
-                            <td>
-                              <p className="unit-name">{unit.label}</p>
-                              <p className="eyebrow">#{unit.id}</p>
-                            </td>
-                            <td>
-                              <StatusBadge status={unit.status} />
-                            </td>
-                            <td>
-                              {unit.milestones?.length ? (
-                                <div className="milestones">
-                                  {unit.milestones.map((milestone) => (
-                                    <span
-                                      key={milestone.label}
-                                      className={
-                                        milestone.completed ? "milestone milestone-complete" : "milestone"
-                                      }
-                                    >
-                                      {milestone.label}
-                                    </span>
-                                  ))}
-                                </div>
-                              ) : (
-                                <span className="property-meta">No milestones yet</span>
-                              )}
-                            </td>
-                            <td className="unit-action-cell">
-                              <span
-                                className="delete-icon unit-delete-icon"
-                                role="button"
-                                aria-label={`Delete ${unit.label}`}
-                                onClick={(event) => {
-                                  event.stopPropagation();
-                                  void handleUnitDelete(unit.id);
-                                }}
-                                onKeyDown={(event) => {
-                                  if (event.key === "Enter" || event.key === " " || event.key === "Spacebar") {
-                                    event.preventDefault();
+                {selectedPhase ? (
+                  <div className="phases">
+                    <article key={selectedPhase.id} className="phase-card">
+                      <div className="phase-card-header">
+                        <h3>{selectedPhase.name}</h3>
+                        <p className="property-meta">{selectedPhase.units?.length ?? 0} units</p>
+                      </div>
+                      <table>
+                        <thead>
+                          <tr>
+                            <th>Unit</th>
+                            <th>Status</th>
+                            <th>Milestones</th>
+                            <th aria-label="Actions"></th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {selectedPhase.units?.map((unit) => (
+                            <tr
+                              key={unit.id}
+                              className={selectedUnit === unit.id ? "active-row" : undefined}
+                              onClick={() => setSelectedUnit(unit.id)}
+                            >
+                              <td>
+                                <p className="unit-name">{unit.label}</p>
+                                <p className="eyebrow">#{unit.id}</p>
+                              </td>
+                              <td>
+                                <StatusBadge status={unit.status} />
+                              </td>
+                              <td>
+                                {unit.milestones?.length ? (
+                                  <div className="milestones">
+                                    {unit.milestones.map((milestone) => (
+                                      <span
+                                        key={milestone.label}
+                                        className={
+                                          milestone.completed ? "milestone milestone-complete" : "milestone"
+                                        }
+                                      >
+                                        {milestone.label}
+                                      </span>
+                                    ))}
+                                  </div>
+                                ) : (
+                                  <span className="property-meta">No milestones yet</span>
+                                )}
+                              </td>
+                              <td className="unit-action-cell">
+                                <span
+                                  className="delete-icon unit-delete-icon"
+                                  role="button"
+                                  aria-label={`Delete ${unit.label}`}
+                                  onClick={(event) => {
                                     event.stopPropagation();
                                     void handleUnitDelete(unit.id);
-                                  }
-                                }}
-                                tabIndex={0}
-                              >
-                                ×
-                              </span>
-                            </td>
-                          </tr>
-                        ))}
-                        {!selectedPhase.units?.length && (
-                          <tr>
-                            <td colSpan={4} className="property-meta">
-                              No units in this phase yet.
-                            </td>
-                          </tr>
-                        )}
-                      </tbody>
-                    </table>
-                  </article>
-                </div>
-              ) : (
-                <p className="property-meta">Select a phase to view its units.</p>
-              )}
-            </>
-          ) : (
-            <div className="empty-state">
-              <p>Select a property to view its details.</p>
-            </div>
-          )}
+                                  }}
+                                  onKeyDown={(event) => {
+                                    if (
+                                      event.key === "Enter" ||
+                                      event.key === " " ||
+                                      event.key === "Spacebar"
+                                    ) {
+                                      event.preventDefault();
+                                      event.stopPropagation();
+                                      void handleUnitDelete(unit.id);
+                                    }
+                                  }}
+                                  tabIndex={0}
+                                >
+                                  ×
+                                </span>
+                              </td>
+                            </tr>
+                          ))}
+                          {!selectedPhase.units?.length && (
+                            <tr>
+                              <td colSpan={4} className="property-meta">
+                                No units in this phase yet.
+                              </td>
+                            </tr>
+                          )}
+                        </tbody>
+                      </table>
+                    </article>
+                    <article className="form-card inline-form">
+                      <div className="panel-header">
+                        <div>
+                          <p className="eyebrow">New record</p>
+                          <h3>Add unit</h3>
+                        </div>
+                      </div>
+                      <form onSubmit={handleUnitSubmit} className="stacked-form">
+                        <label>
+                          <span>Phase name</span>
+                          <input
+                            type="text"
+                            value={unitForm.phaseName}
+                            onChange={(event) =>
+                              setUnitForm((prev) => ({ ...prev, phaseName: event.target.value }))
+                            }
+                            placeholder="e.g., Tower B"
+                            required
+                          />
+                        </label>
+                        <label>
+                          <span>Unit label</span>
+                          <input
+                            type="text"
+                            value={unitForm.label}
+                            onChange={(event) =>
+                              setUnitForm((prev) => ({ ...prev, label: event.target.value }))
+                            }
+                            placeholder="e.g., Unit 5C"
+                            required
+                          />
+                        </label>
+                        <label>
+                          <span>Status</span>
+                          <select
+                            value={unitForm.status}
+                            onChange={(event) =>
+                              setUnitForm((prev) => ({ ...prev, status: event.target.value }))
+                            }
+                          >
+                            {STATUS_OPTIONS.map((option) => (
+                              <option key={option.value} value={option.value}>
+                                {option.label}
+                              </option>
+                            ))}
+                          </select>
+                        </label>
+                        {unitFormError && <p className="form-error">{unitFormError}</p>}
+                        <button type="submit" className="primary-btn" disabled={!selectedPropertyId}>
+                          {selectedPropertyId ? "Save unit" : "Select a property first"}
+                        </button>
+                      </form>
+                    </article>
+                  </div>
+                ) : (
+                  <p className="property-meta">Select a phase to view its units.</p>
+                )}
+              </>
+            )}
+          </div>
         </section>
+
       </main>
-
-      <section className="form-grid">
-        <article className="form-card">
-          <div className="panel-header">
-            <div>
-              <p className="eyebrow">New record</p>
-              <h3>Add property</h3>
-            </div>
-          </div>
-          <form onSubmit={handlePropertySubmit} className="stacked-form">
-            <label>
-              <span>Name</span>
-              <input
-                type="text"
-                value={propertyForm.name}
-                onChange={(event) => setPropertyForm((prev) => ({ ...prev, name: event.target.value }))}
-                placeholder="e.g., East Village Row"
-                required
-              />
-            </label>
-            <label>
-              <span>Location</span>
-              <input
-                type="text"
-                value={propertyForm.location}
-                onChange={(event) =>
-                  setPropertyForm((prev) => ({ ...prev, location: event.target.value }))
-                }
-                placeholder="City, State"
-                required
-              />
-            </label>
-            <label>
-              <span>Type</span>
-              <select
-                value={propertyForm.type}
-                onChange={(event) => setPropertyForm((prev) => ({ ...prev, type: event.target.value }))}
-              >
-                {PROPERTY_TYPES.map((option) => (
-                  <option key={option.value} value={option.value}>
-                    {option.label}
-                  </option>
-                ))}
-              </select>
-            </label>
-            {propertyFormError && <p className="form-error">{propertyFormError}</p>}
-            <button type="submit" className="primary-btn">
-              Save property
-            </button>
-          </form>
-        </article>
-
-        <article className="form-card">
-          <div className="panel-header">
-            <div>
-              <p className="eyebrow">New record</p>
-              <h3>Add unit</h3>
-            </div>
-          </div>
-          <form onSubmit={handleUnitSubmit} className="stacked-form">
-            <label>
-              <span>Phase name</span>
-              <input
-                type="text"
-                value={unitForm.phaseName}
-                onChange={(event) => setUnitForm((prev) => ({ ...prev, phaseName: event.target.value }))}
-                placeholder="e.g., Tower B"
-                required
-              />
-            </label>
-            <label>
-              <span>Unit label</span>
-              <input
-                type="text"
-                value={unitForm.label}
-                onChange={(event) => setUnitForm((prev) => ({ ...prev, label: event.target.value }))}
-                placeholder="e.g., Unit 5C"
-                required
-              />
-            </label>
-            <label>
-              <span>Status</span>
-              <select
-                value={unitForm.status}
-                onChange={(event) => setUnitForm((prev) => ({ ...prev, status: event.target.value }))}
-              >
-                {STATUS_OPTIONS.map((option) => (
-                  <option key={option.value} value={option.value}>
-                    {option.label}
-                  </option>
-                ))}
-              </select>
-            </label>
-            {unitFormError && <p className="form-error">{unitFormError}</p>}
-            <button type="submit" className="primary-btn" disabled={!selectedPropertyId}>
-              {selectedPropertyId ? "Save unit" : "Select a property first"}
-            </button>
-          </form>
-        </article>
-      </section>
 
       {activeUnit && (
         <section className="drawer">
