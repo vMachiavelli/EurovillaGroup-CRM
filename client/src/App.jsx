@@ -55,12 +55,26 @@ function App() {
     type: PROPERTY_TYPES[0].value
   });
   const [unitForm, setUnitForm] = useState({
-    phaseName: "",
     label: "",
-    status: STATUS_OPTIONS[0].value
+    status: STATUS_OPTIONS[0].value,
+    listPrice: "",
+    salePrice: "",
+    totalReceived: ""
   });
   const [showPropertyForm, setShowPropertyForm] = useState(false);
   const [showUnitForm, setShowUnitForm] = useState(false);
+  const [showPhaseForm, setShowPhaseForm] = useState(false);
+  const [phaseForm, setPhaseForm] = useState({ name: "" });
+  const [editUnitForm, setEditUnitForm] = useState({
+    label: "",
+    status: STATUS_OPTIONS[0].value,
+    listPrice: "",
+    salePrice: "",
+    totalReceived: ""
+  });
+  const [milestoneForm, setMilestoneForm] = useState({ label: "", amount: "" });
+  const [showMilestoneForm, setShowMilestoneForm] = useState(false);
+  const [showEditForm, setShowEditForm] = useState(false);
   const [activeTab, setActiveTab] = useState(1);
 
   const fetchProperties = useCallback(async (nextSelectedId = null) => {
@@ -118,6 +132,13 @@ function App() {
   useEffect(() => {
     setSelectedUnit(null);
     setShowUnitForm(false);
+    setUnitForm({
+      label: "",
+      status: STATUS_OPTIONS[0].value,
+      listPrice: "",
+      salePrice: "",
+      totalReceived: ""
+    });
   }, [selectedPhaseId]);
 
   const selectedPhase = useMemo(
@@ -181,6 +202,7 @@ function App() {
       setActiveTab(1);
     }
     setShowPropertyForm(false);
+    setShowPhaseForm(false);
   }, [selectedProperty]);
 
   useEffect(() => {
@@ -188,7 +210,23 @@ function App() {
       setActiveTab(2);
     }
     setShowUnitForm(false);
+    setShowPhaseForm(false);
   }, [selectedProperty, selectedPhase]);
+
+  useEffect(() => {
+    if (activeUnit) {
+      setEditUnitForm({
+        label: activeUnit.unit.label,
+        status: activeUnit.unit.status,
+        listPrice: activeUnit.unit.listPrice ?? "",
+        salePrice: activeUnit.unit.salePrice ?? "",
+        totalReceived: activeUnit.unit.totalReceived ?? ""
+      });
+      setMilestoneForm({ label: "", amount: "" });
+      setShowMilestoneForm(false);
+      setShowEditForm(false);
+    }
+  }, [activeUnit]);
 
   const handlePropertySubmit = async (event) => {
     event.preventDefault();
@@ -208,6 +246,7 @@ function App() {
       setPropertyForm({ name: "", location: "", type: PROPERTY_TYPES[0].value });
       setSelectedUnit(null);
       await fetchProperties(payload.data?.id);
+      setShowPropertyForm(false);
     } catch (err) {
       setPropertyFormError(err.message);
     }
@@ -217,8 +256,8 @@ function App() {
     event.preventDefault();
     setUnitFormError("");
 
-    if (!selectedPropertyId) {
-      setUnitFormError("Select a property first.");
+    if (!selectedPropertyId || !selectedPhase) {
+      setUnitFormError("Select a property and phase first.");
       return;
     }
 
@@ -228,15 +267,102 @@ function App() {
         headers: {
           "Content-Type": "application/json"
         },
-        body: JSON.stringify(unitForm)
+        body: JSON.stringify({
+          ...unitForm,
+          listPrice: unitForm.listPrice ? Number(unitForm.listPrice) : null,
+          salePrice: unitForm.salePrice ? Number(unitForm.salePrice) : null,
+          totalReceived: unitForm.totalReceived ? Number(unitForm.totalReceived) : null,
+          phaseName: selectedPhase.name
+        })
       });
       const payload = await response.json();
       if (!response.ok) {
         throw new Error(payload.error || "Unable to add unit");
       }
-      setUnitForm({ phaseName: "", label: "", status: STATUS_OPTIONS[0].value });
+      setUnitForm({
+        label: "",
+        status: STATUS_OPTIONS[0].value,
+        listPrice: "",
+        salePrice: "",
+        totalReceived: ""
+      });
       await fetchProperties(selectedPropertyId);
+      const nextPhaseId = payload.data?.phase?.id ?? selectedPhaseId;
+      if (nextPhaseId) {
+        setSelectedPhaseId(nextPhaseId);
+      }
       setSelectedUnit(payload.data?.unit?.id ?? null);
+      setActiveTab(3);
+      setShowUnitForm(false);
+    } catch (err) {
+      setUnitFormError(err.message);
+    }
+  };
+
+  const handlePhaseSubmit = async (event) => {
+    event.preventDefault();
+    if (!selectedPropertyId) {
+      return;
+    }
+    const name = phaseForm.name.trim();
+    if (!name) {
+      return;
+    }
+
+    try {
+      setUnitFormError("");
+      const response = await fetch(`${API_BASE}/api/properties/${selectedPropertyId}/phases`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({ name })
+      });
+      const payload = await response.json();
+      if (!response.ok) {
+        throw new Error(payload.error || "Unable to add phase");
+      }
+      const newPhase = payload.data?.phase;
+      setPhaseForm({ name: "" });
+      setShowPhaseForm(false);
+      await fetchProperties(selectedPropertyId);
+      if (newPhase?.id) {
+        setSelectedPhaseId(newPhase.id);
+        setActiveTab(3);
+      }
+    } catch (err) {
+      setUnitFormError(err.message);
+    }
+  };
+
+  const handleUnitEditSubmit = async (event) => {
+    event.preventDefault();
+    if (!selectedPropertyId || !selectedUnit) return;
+
+    try {
+      setUnitFormError("");
+      const response = await fetch(
+        `${API_BASE}/api/properties/${selectedPropertyId}/units/${selectedUnit}`,
+        {
+          method: "PATCH",
+          headers: {
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({
+            label: editUnitForm.label,
+            status: editUnitForm.status,
+            listPrice: editUnitForm.listPrice ? Number(editUnitForm.listPrice) : null,
+            salePrice: editUnitForm.salePrice ? Number(editUnitForm.salePrice) : null,
+            totalReceived: editUnitForm.totalReceived ? Number(editUnitForm.totalReceived) : null
+          })
+        }
+      );
+      const payload = await response.json();
+      if (!response.ok) {
+        throw new Error(payload.error || "Unable to update unit");
+      }
+      await fetchProperties(selectedPropertyId);
+      setShowEditForm(false);
     } catch (err) {
       setUnitFormError(err.message);
     }
@@ -297,15 +423,69 @@ function App() {
     }
   };
 
+  const handleMilestoneToggle = async (milestone) => {
+    if (!selectedPropertyId || !activeUnit?.unit?.id) return;
+    try {
+      setUnitFormError("");
+      const response = await fetch(
+        `${API_BASE}/api/properties/${selectedPropertyId}/units/${activeUnit.unit.id}/milestones`,
+        {
+          method: "PATCH",
+          headers: {
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({ label: milestone.label, completed: !milestone.completed })
+        }
+      );
+      const payload = await response.json();
+      if (!response.ok) {
+        throw new Error(payload.error || "Unable to update milestone");
+      }
+      await fetchProperties(selectedPropertyId);
+      setSelectedUnit(activeUnit.unit.id);
+    } catch (err) {
+      setUnitFormError(err.message);
+    }
+  };
+
+  const handleMilestoneSubmit = async (event) => {
+    event.preventDefault();
+    if (!selectedPropertyId || !activeUnit?.unit?.id) return;
+    const label = milestoneForm.label.trim();
+    if (!label) {
+      setUnitFormError("Milestone label is required.");
+      return;
+    }
+    try {
+      setUnitFormError("");
+      const response = await fetch(
+        `${API_BASE}/api/properties/${selectedPropertyId}/units/${activeUnit.unit.id}/milestones`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({
+            label,
+            amount: milestoneForm.amount ? Number(milestoneForm.amount) : null
+          })
+        }
+      );
+      const payload = await response.json();
+      if (!response.ok) {
+        throw new Error(payload.error || "Unable to add milestone");
+      }
+      setMilestoneForm({ label: "", amount: "" });
+      setShowMilestoneForm(false);
+      await fetchProperties(selectedPropertyId);
+      setSelectedUnit(activeUnit.unit.id);
+    } catch (err) {
+      setUnitFormError(err.message);
+    }
+  };
+
   return (
     <div className="app-shell">
-      <header>
-        <div>
-          <p className="eyebrow">Eurovilla Group</p>
-          <h1 className="page-title">Project status</h1>
-        </div>
-      </header>
-
       <div className="selection-tabs" role="tablist" aria-label="Selection steps">
         {tabData.map((tab) => (
           <button
@@ -325,11 +505,7 @@ function App() {
       </div>
 
       <main className="main-grid" style={mainGridStyle}>
-        <section
-          key={activeTab}
-          className={`${propertyPanelClass} panel-grow`}
-          {...panelTabProps(1, true)}
-        >
+        <section key={activeTab} className={`${propertyPanelClass} panel-grow`}>
           <div
             key={`${activeTab}-${selectedPhaseId ?? "none"}`}
             className={`panel-content panel-step ${
@@ -461,11 +637,11 @@ function App() {
                 <div className="panel-header">
                   <h2>Phases</h2>
                 </div>
-                {selectedProperty ? (
-                  selectedProperty.phases?.length ? (
-                    <div className="phase-tabs">
-                      {selectedProperty.phases.map((phase) => (
-                        <button
+            {selectedProperty ? (
+              selectedProperty.phases?.length ? (
+                <div className="phase-tabs">
+                  {selectedProperty.phases.map((phase) => (
+                    <button
                           key={phase.id}
                           type="button"
                           className={`phase-tab ${phase.id === selectedPhaseId ? "active" : ""}`}
@@ -473,63 +649,132 @@ function App() {
                             setSelectedPhaseId(phase.id);
                             setActiveTab(3);
                           }}
-                        >
-                          <span>{phase.name}</span>
-                          <span className="eyebrow">{phase.units?.length ?? 0} units</span>
-                        </button>
-                      ))}
-                    </div>
+                    >
+                      <span>{phase.name}</span>
+                      <span className="eyebrow">{phase.units?.length ?? 0} units</span>
+                    </button>
+                  ))}
+                </div>
+              ) : (
+                <p className="property-meta">This property has no phases yet.</p>
+              )
+            ) : (
+              <p className="property-meta">Select a property to view its phases.</p>
+            )}
+
+                <div className="inline-form-wrapper">
+                  {showPhaseForm ? (
+                    <article className="form-card inline-form">
+                      <div className="panel-header">
+                        <div>
+                          <p className="eyebrow">New record</p>
+                          <h3>Add phase</h3>
+                        </div>
+                      </div>
+                      <form onSubmit={handlePhaseSubmit} className="stacked-form">
+                        <label>
+                          <span>Phase name</span>
+                          <input
+                            type="text"
+                            value={phaseForm.name}
+                            onChange={(event) => setPhaseForm({ name: event.target.value })}
+                            placeholder="e.g., Tower B"
+                            required
+                          />
+                        </label>
+                        {unitFormError && <p className="form-error">{unitFormError}</p>}
+                        <div className="form-actions">
+                          <button type="button" className="ghost-btn" onClick={() => setShowPhaseForm(false)}>
+                            Cancel
+                          </button>
+                          <button type="submit" className="primary-btn" disabled={!selectedPropertyId}>
+                            {selectedPropertyId ? "Save phase" : "Select a property first"}
+                          </button>
+                        </div>
+                      </form>
+                    </article>
                   ) : (
-                    <p className="property-meta">This property has no phases yet.</p>
-                  )
-                ) : (
-                  <p className="property-meta">Select a property to view its phases.</p>
-                )}
+                    <button
+                      className="floating-btn"
+                      type="button"
+                      onClick={() => setShowPhaseForm(true)}
+                      disabled={!selectedPropertyId}
+                    >
+                      +
+                      <span className="sr-only">Add phase</span>
+                    </button>
+                  )}
+                </div>
               </>
             )}
 
             {activeTab === 3 && (
               <>
                 <div className="panel-header">
-                  <div>
-                    <p className="eyebrow">Active property</p>
-                    <h2>{selectedProperty?.name}</h2>
-                    <div className="property-line">
+                  <div className="active-property-header">
+                    <p className="inline-eyebrow">
+                      Active Property:
+                      <span className="eyebrow-value">{selectedProperty?.name ?? "None selected"}</span>
+                    </p>
+                    <div className="property-line compact">
                       <p className="property-meta">{selectedProperty?.location}</p>
                       <PropertyTypeBadge type={selectedProperty?.type} />
                     </div>
                   </div>
                 </div>
-                {selectedPhase ? (
-                  <div className="phases">
-                    <article key={selectedPhase.id} className="phase-card">
-                      <div className="phase-card-header">
-                        <h3>{selectedPhase.name}</h3>
-                        <p className="property-meta">{selectedPhase.units?.length ?? 0} units</p>
-                      </div>
-                      <table>
-                        <thead>
-                          <tr>
-                            <th>Unit</th>
-                            <th>Status</th>
-                            <th>Milestones</th>
-                            <th aria-label="Actions"></th>
-                          </tr>
-                        </thead>
+            {selectedPhase ? (
+              <div className="phases">
+                <article key={selectedPhase.id} className="phase-card">
+                  <div className="phase-card-header">
+                    <h3>{selectedPhase.name}</h3>
+                    <p className="property-meta">{selectedPhase.units?.length ?? 0} units</p>
+                  </div>
+                  <table className="units-table">
+                    <thead>
+                      <tr>
+                        <th>Unit</th>
+                        <th>List price</th>
+                        <th>Sale price</th>
+                        <th>Received</th>
+                        <th>Status</th>
+                        <th>Milestones</th>
+                        <th aria-label="Actions"></th>
+                      </tr>
+                    </thead>
                         <tbody>
                           {selectedPhase.units?.map((unit) => (
-                            <tr
-                              key={unit.id}
-                              className={selectedUnit === unit.id ? "active-row" : undefined}
-                              onClick={() => setSelectedUnit(unit.id)}
-                            >
-                              <td>
-                                <p className="unit-name">{unit.label}</p>
-                                <p className="eyebrow">#{unit.id}</p>
-                              </td>
-                              <td>
-                                <StatusBadge status={unit.status} />
-                              </td>
+                        <tr
+                          key={unit.id}
+                          className={selectedUnit === unit.id ? "active-row" : undefined}
+                          onClick={() => setSelectedUnit((current) => (current === unit.id ? null : unit.id))}
+                        >
+                          <td>
+                            <p className="unit-name">{unit.label}</p>
+                          </td>
+                          <td>
+                            {typeof unit.listPrice === "number" ? (
+                              <span className="property-meta">${unit.listPrice.toLocaleString()}</span>
+                            ) : (
+                              <span className="property-meta">-</span>
+                            )}
+                          </td>
+                          <td>
+                            {typeof unit.salePrice === "number" ? (
+                              <span className="property-meta">${unit.salePrice.toLocaleString()}</span>
+                            ) : (
+                              <span className="property-meta">-</span>
+                            )}
+                          </td>
+                          <td>
+                            {typeof unit.totalReceived === "number" ? (
+                              <span className="property-meta">${unit.totalReceived.toLocaleString()}</span>
+                            ) : (
+                              <span className="property-meta">-</span>
+                            )}
+                          </td>
+                          <td>
+                            <StatusBadge status={unit.status} />
+                          </td>
                               <td>
                                 {unit.milestones?.length ? (
                                   <div className="milestones">
@@ -577,7 +822,7 @@ function App() {
                           ))}
                           {!selectedPhase.units?.length && (
                             <tr>
-                              <td colSpan={4} className="property-meta">
+                              <td colSpan={7} className="property-meta">
                                 No units in this phase yet.
                               </td>
                             </tr>
@@ -585,27 +830,17 @@ function App() {
                         </tbody>
                       </table>
                     </article>
+                    <div className="inline-form-wrapper">
+                      {showUnitForm ? (
                     <article className="form-card inline-form">
                       <div className="panel-header">
                         <div>
                           <p className="eyebrow">New record</p>
                           <h3>Add unit</h3>
-                        </div>
-                      </div>
-                      <form onSubmit={handleUnitSubmit} className="stacked-form">
-                        <label>
-                          <span>Phase name</span>
-                          <input
-                            type="text"
-                            value={unitForm.phaseName}
-                            onChange={(event) =>
-                              setUnitForm((prev) => ({ ...prev, phaseName: event.target.value }))
-                            }
-                            placeholder="e.g., Tower B"
-                            required
-                          />
-                        </label>
-                        <label>
+                            </div>
+                          </div>
+                          <form onSubmit={handleUnitSubmit} className="stacked-form">
+                            <label>
                           <span>Unit label</span>
                           <input
                             type="text"
@@ -618,26 +853,78 @@ function App() {
                           />
                         </label>
                         <label>
-                          <span>Status</span>
-                          <select
-                            value={unitForm.status}
-                            onChange={(event) =>
-                              setUnitForm((prev) => ({ ...prev, status: event.target.value }))
-                            }
-                          >
-                            {STATUS_OPTIONS.map((option) => (
-                              <option key={option.value} value={option.value}>
-                                {option.label}
-                              </option>
-                            ))}
-                          </select>
+                          <span>List price</span>
+                          <input
+                            type="number"
+                            min="0"
+                            step="1000"
+                            value={unitForm.listPrice}
+                            onChange={(event) => setUnitForm((prev) => ({ ...prev, listPrice: event.target.value }))}
+                            placeholder="e.g., 850000"
+                          />
                         </label>
-                        {unitFormError && <p className="form-error">{unitFormError}</p>}
-                        <button type="submit" className="primary-btn" disabled={!selectedPropertyId}>
-                          {selectedPropertyId ? "Save unit" : "Select a property first"}
+                        <label>
+                          <span>Sale price</span>
+                          <input
+                            type="number"
+                            min="0"
+                            step="1000"
+                            value={unitForm.salePrice}
+                            onChange={(event) => setUnitForm((prev) => ({ ...prev, salePrice: event.target.value }))}
+                            placeholder="e.g., 810000"
+                          />
+                        </label>
+                        <label>
+                          <span>Total received</span>
+                          <input
+                            type="number"
+                            min="0"
+                            step="1000"
+                            value={unitForm.totalReceived}
+                            onChange={(event) =>
+                              setUnitForm((prev) => ({ ...prev, totalReceived: event.target.value }))
+                            }
+                            placeholder="e.g., 120000"
+                          />
+                        </label>
+                            <label>
+                              <span>Status</span>
+                              <select
+                                value={unitForm.status}
+                                onChange={(event) =>
+                                  setUnitForm((prev) => ({ ...prev, status: event.target.value }))
+                                }
+                              >
+                                {STATUS_OPTIONS.map((option) => (
+                                  <option key={option.value} value={option.value}>
+                                    {option.label}
+                                  </option>
+                                ))}
+                              </select>
+                            </label>
+                            {unitFormError && <p className="form-error">{unitFormError}</p>}
+                            <div className="form-actions">
+                              <button type="button" className="ghost-btn" onClick={() => setShowUnitForm(false)}>
+                                Cancel
+                              </button>
+                              <button type="submit" className="primary-btn" disabled={!selectedPhase}>
+                                {selectedPhase ? "Save unit" : "Select a phase first"}
+                              </button>
+                            </div>
+                          </form>
+                        </article>
+                      ) : (
+                        <button
+                          className="floating-btn"
+                          type="button"
+                          onClick={() => setShowUnitForm(true)}
+                          disabled={!selectedPhase}
+                        >
+                          +
+                          <span className="sr-only">Add unit</span>
                         </button>
-                      </form>
-                    </article>
+                      )}
+                    </div>
                   </div>
                 ) : (
                   <p className="property-meta">Select a phase to view its units.</p>
@@ -651,17 +938,126 @@ function App() {
 
       {activeUnit && (
         <section className="drawer">
-          <div>
-            <p className="eyebrow">Unit detail</p>
-            <h3>{activeUnit.unit.label}</h3>
+          <div className="drawer-header-row">
+            <div>
+              <p className="eyebrow">Unit detail</p>
+              <h3>{activeUnit.unit.label}</h3>
+            </div>
+            <div className="drawer-actions">
+              <button className="ghost-btn" type="button" onClick={() => setShowEditForm((v) => !v)}>
+                {showEditForm ? "Close edit" : "Edit unit"}
+              </button>
+            </div>
           </div>
           <p className="property-meta">
             {selectedProperty?.name} • {activeUnit.phase.name}
           </p>
           <StatusBadge status={activeUnit.unit.status} />
-          <div className="milestones column">
-            {(activeUnit.unit.milestones ?? []).map((milestone) => (
-              <div key={milestone.label} className="milestone-row">
+          {showEditForm && (
+            <article className="form-card inline-form">
+          <div className="panel-header">
+            <div>
+              <p className="eyebrow">Edit unit</p>
+              <h3>{activeUnit.unit.label}</h3>
+            </div>
+          </div>
+          <form onSubmit={handleUnitEditSubmit} className="stacked-form">
+            <label>
+              <span>Unit label</span>
+              <input
+                type="text"
+                value={editUnitForm.label}
+                onChange={(event) => setEditUnitForm((prev) => ({ ...prev, label: event.target.value }))}
+                required
+              />
+            </label>
+            <label>
+              <span>List price</span>
+              <input
+                type="number"
+                min="0"
+                step="1000"
+                value={editUnitForm.listPrice}
+                onChange={(event) => setEditUnitForm((prev) => ({ ...prev, listPrice: event.target.value }))}
+              />
+            </label>
+            <label>
+              <span>Sale price</span>
+              <input
+                type="number"
+                min="0"
+                step="1000"
+                value={editUnitForm.salePrice}
+                onChange={(event) => setEditUnitForm((prev) => ({ ...prev, salePrice: event.target.value }))}
+              />
+            </label>
+            <label>
+              <span>Total received</span>
+              <input
+                type="number"
+                min="0"
+                step="1000"
+                value={editUnitForm.totalReceived}
+                onChange={(event) =>
+                  setEditUnitForm((prev) => ({ ...prev, totalReceived: event.target.value }))
+                }
+              />
+            </label>
+            <label>
+              <span>Status</span>
+              <select
+                value={editUnitForm.status}
+                onChange={(event) => setEditUnitForm((prev) => ({ ...prev, status: event.target.value }))}
+              >
+                {STATUS_OPTIONS.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+            {unitFormError && <p className="form-error">{unitFormError}</p>}
+            <div className="form-actions">
+              <button
+                type="button"
+                className="ghost-btn"
+                onClick={() => {
+                  setShowEditForm(false);
+                  setUnitFormError("");
+                  setEditUnitForm({
+                    label: activeUnit.unit.label,
+                    status: activeUnit.unit.status,
+                    listPrice: activeUnit.unit.listPrice ?? "",
+                    salePrice: activeUnit.unit.salePrice ?? "",
+                    totalReceived: activeUnit.unit.totalReceived ?? ""
+                  });
+                }}
+              >
+                Cancel
+              </button>
+              <button type="submit" className="primary-btn">
+                Save changes
+              </button>
+            </div>
+          </form>
+        </article>
+      )}
+      <div className="milestones column">
+        {(activeUnit.unit.milestones ?? []).map((milestone) => (
+          <div
+            key={milestone.label}
+            className="milestone-row"
+                role="button"
+                tabIndex={0}
+                onClick={() => handleMilestoneToggle(milestone)}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter" || event.key === " " || event.key === "Spacebar") {
+                    event.preventDefault();
+                    handleMilestoneToggle(milestone);
+                  }
+                }}
+                style={{ cursor: "pointer" }}
+              >
                 <span>{milestone.label}</span>
                 <span className={milestone.completed ? "badge-complete" : "badge-pending"}>
                   {milestone.completed ? "Complete" : "Pending"}
@@ -673,6 +1069,59 @@ function App() {
               <p className="property-meta">No milestone data yet.</p>
             )}
           </div>
+          {showMilestoneForm ? (
+            <article className="form-card inline-form">
+              <div className="panel-header">
+                <div>
+                  <p className="eyebrow">Add milestone</p>
+                </div>
+              </div>
+              <form onSubmit={handleMilestoneSubmit} className="stacked-form">
+                <label>
+                  <span>Label</span>
+                  <input
+                    type="text"
+                    value={milestoneForm.label}
+                    onChange={(event) => setMilestoneForm((prev) => ({ ...prev, label: event.target.value }))}
+                    placeholder="e.g., Deposit"
+                    required
+                  />
+                </label>
+                <label>
+                  <span>Amount</span>
+                  <input
+                    type="number"
+                    min="0"
+                    step="1000"
+                    value={milestoneForm.amount}
+                    onChange={(event) => setMilestoneForm((prev) => ({ ...prev, amount: event.target.value }))}
+                    placeholder="Optional"
+                  />
+                </label>
+                {unitFormError && <p className="form-error">{unitFormError}</p>}
+                <div className="form-actions">
+                  <button
+                    type="button"
+                    className="ghost-btn"
+                    onClick={() => {
+                      setShowMilestoneForm(false);
+                      setMilestoneForm({ label: "", amount: "" });
+                    }}
+                  >
+                    Cancel
+                  </button>
+                  <button type="submit" className="primary-btn">
+                    Save milestone
+                  </button>
+                </div>
+              </form>
+            </article>
+          ) : (
+            <button className="floating-btn" type="button" onClick={() => setShowMilestoneForm(true)}>
+              +
+              <span className="sr-only">Add milestone</span>
+            </button>
+          )}
         </section>
       )}
     </div>

@@ -2,10 +2,14 @@ import { Router } from "express";
 import {
   addUnitToProperty,
   createProperty,
+  createPhaseForProperty,
   deletePropertyById,
   deleteUnitFromProperty,
   findPropertyById,
-  listProperties
+  listProperties,
+  addMilestoneToUnit,
+  updateMilestoneForUnit,
+  updateUnitForProperty
 } from "../data/properties.js";
 
 const router = Router();
@@ -62,6 +66,15 @@ router.post("/:propertyId/units", (req, res) => {
   }
 });
 
+router.post("/:propertyId/phases", (req, res) => {
+  try {
+    const phase = createPhaseForProperty(req.params.propertyId, req.body?.name);
+    res.status(201).json({ data: { phase } });
+  } catch (error) {
+    res.status(error.status || 400).json({ error: error.message });
+  }
+});
+
 router.get("/:propertyId/units/:unitId", (req, res) => {
   const property = findPropertyById(req.params.propertyId);
   const phaseWithUnit = property?.phases.find((phase) =>
@@ -80,6 +93,38 @@ router.get("/:propertyId/units/:unitId", (req, res) => {
       unit
     }
   });
+});
+
+router.patch("/:propertyId/units/:unitId", (req, res) => {
+  try {
+    const result = updateUnitForProperty(req.params.propertyId, req.params.unitId, req.body || {});
+    res.json({ data: result });
+  } catch (error) {
+    res.status(error.status || 400).json({ error: error.message });
+  }
+});
+
+router.patch("/:propertyId/units/:unitId/milestones", (req, res) => {
+  try {
+    const result = updateMilestoneForUnit(
+      req.params.propertyId,
+      req.params.unitId,
+      req.body?.label,
+      req.body || {}
+    );
+    res.json({ data: result });
+  } catch (error) {
+    res.status(error.status || 400).json({ error: error.message });
+  }
+});
+
+router.post("/:propertyId/units/:unitId/milestones", (req, res) => {
+  try {
+    const result = addMilestoneToUnit(req.params.propertyId, req.params.unitId, req.body || {});
+    res.status(201).json({ data: result });
+  } catch (error) {
+    res.status(error.status || 400).json({ error: error.message });
+  }
 });
 
 export default router;

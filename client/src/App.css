@@ -278,6 +278,35 @@ header {
   justify-content: space-between;
 }
 
+.active-property-header {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.inline-eyebrow {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.4rem;
+  font-size: 0.8rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #9ca3af;
+  margin: 0;
+}
+
+.inline-eyebrow .eyebrow-value {
+  color: #e5e7eb;
+  font-weight: 700;
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+.property-line.compact {
+  gap: 0.6rem;
+  margin-top: 0;
+}
+
 .pill {
   background: #1f2937;
   padding: 0.25rem 0.75rem;
@@ -401,7 +430,7 @@ header {
 }
 
 .unit-action-cell {
-  width: 2.5rem;
+  width: 2rem;
   text-align: right;
 }
 
@@ -411,7 +440,7 @@ header {
   height: 1.25rem;
   font-size: 0.9rem;
   line-height: 1;
-  padding: 0;
+  padding: 1;
   background: transparent;
   box-shadow: none;
   border: none;
@@ -434,7 +463,7 @@ header {
 .phase-card {
   border: 1px solid #1f2937;
   border-radius: 12px;
-  padding: 1rem;
+  padding: 0.5rem 0.75rem 0.25rem;
   background-color: #0f172a;
 }
 
@@ -442,25 +471,40 @@ header {
   display: flex;
   align-items: baseline;
   justify-content: space-between;
+  margin-bottom: 0.25rem;
+}
+
+.phase-card-header h3 {
+  margin: 0;
+}
+
+.phase-card-header .property-meta {
+  margin: 0;
+}
+
+.phase-card + .units-table {
+  margin-top: 0.15rem;
 }
 
 table {
   width: 100%;
   border-collapse: collapse;
-  margin-top: 1rem;
+  margin-top: 0.5rem;
 }
 
 th {
   text-align: left;
-  font-size: 0.85rem;
+  font-size: 0.68rem;
   color: #9ca3af;
   border-bottom: 1px solid #1f2937;
-  padding-bottom: 0.5rem;
+  padding: 0.35rem 0;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
 }
 
 td {
-  padding: 0.75rem 0;
-  border-bottom: 1px solid #1f2937;
+  padding: 0.5rem 0;
+  border-bottom: 1px solid #111827;
 }
 
 tr:last-child td {
@@ -468,7 +512,49 @@ tr:last-child td {
 }
 
 tr.active-row {
-  background-color: #1f2937;
+  background-color: #131826;
+}
+
+.units-table {
+  border-collapse: separate;
+  border-spacing: 0 1px;
+}
+
+.units-table th {
+  border-bottom: none;
+  padding-bottom: 0.1rem;
+}
+
+.units-table td {
+  padding: 0px 0;
+  border-bottom: none;
+}
+
+.units-table tbody tr {
+  background-color: transparent;
+}
+
+.units-table tbody tr td {
+  background-color: #0c1220;
+  border-top: 1px solid #1f2937;
+  border-bottom: 1px solid #1f2937;
+}
+
+.units-table tbody tr td:first-child {
+  border-left: 1px solid #1f2937;
+  border-top-left-radius: 12px;
+  border-bottom-left-radius: 12px;
+  padding-left: 1rem;
+}
+
+.units-table tbody tr td:last-child {
+  border-right: 1px solid #1f2937;
+  border-top-right-radius: 12px;
+  border-bottom-right-radius: 12px;
+}
+
+.units-table tbody tr.active-row td {
+  background-color: #131826;
 }
 
 .unit-name {
@@ -548,6 +634,52 @@ tr.active-row {
   margin-top: 0.5rem;
 }
 
+.inline-form-wrapper {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.floating-btn {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  border: 1px solid #1f2937;
+  background: #0b1120;
+  color: #e5e7eb;
+  font-size: 1.4rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: transform 150ms ease, border-color 150ms ease, background 150ms ease;
+}
+
+.floating-btn:hover,
+.floating-btn:focus-visible {
+  transform: scale(1.05);
+  border-color: #6366f1;
+}
+
+.floating-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.form-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+}
+
+.ghost-btn {
+  padding: 0.65rem 1rem;
+  border-radius: 8px;
+  border: 1px solid #1f2937;
+  background: transparent;
+  color: #e5e7eb;
+  cursor: pointer;
+}
+
 .stacked-form {
   display: flex;
   flex-direction: column;
@@ -597,6 +729,19 @@ tr.active-row {
   border-radius: 12px;
   padding: 1rem;
   background-color: #030712;
+}
+
+.drawer-header-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.drawer-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin: 0;
 }
 
 .milestone-row {
