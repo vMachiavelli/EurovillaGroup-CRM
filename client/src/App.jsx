@@ -4,8 +4,8 @@ import "./App.css";
 const API_BASE = import.meta.env.VITE_API_BASE_URL ?? "";
 
 const PROPERTY_TYPES = [
-  { value: "townhouse", label: "Townhouse" },
   { value: "semi_detached", label: "Semi-detached" },
+  { value: "villa", label: "Villa" },
   { value: "apartment", label: "Apartment" }
 ];
 
@@ -30,6 +30,81 @@ const STATUS_COLORS = {
   sold: "success"
 };
 
+const propertyTypeSupportsPhases = (type) => type !== "villa";
+
+const createEmptyBuyer = () => ({
+  name: "",
+  passportNumber: "",
+  purchaseDate: "",
+  initialPayment: "",
+  firstPayment: "",
+  secondPayment: "",
+  phone: "",
+  passportFile: null
+});
+
+const createEmptyContract = () => ({
+  reference: "",
+  telephone: "",
+  documentFile: null
+});
+
+const createUnitFormState = () => ({
+  unitNumber: "",
+  status: STATUS_OPTIONS[0].value,
+  listPrice: "",
+  salePrice: "",
+  totalReceived: "",
+  buyer: createEmptyBuyer(),
+  contract: createEmptyContract()
+});
+
+const numericOrNull = (value) => {
+  if (value === "" || value === null || value === undefined) {
+    return null;
+  }
+  const parsed = Number(value);
+  return Number.isNaN(parsed) ? null : parsed;
+};
+
+const convertFileToPayload = (file) =>
+  new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const result = typeof reader.result === "string" ? reader.result : "";
+      const [, base64Data = ""] = result.split(",");
+      resolve({
+        name: file.name,
+        type: file.type,
+        size: file.size,
+        data: base64Data
+      });
+    };
+    reader.onerror = () => reject(new Error("Unable to read file"));
+    reader.readAsDataURL(file);
+  });
+
+const formatFileSize = (size) => {
+  if (typeof size !== "number" || Number.isNaN(size)) {
+    return null;
+  }
+  if (size >= 1024 * 1024) {
+    return `${(size / (1024 * 1024)).toFixed(1)} MB`;
+  }
+  if (size >= 1024) {
+    return `${(size / 1024).toFixed(1)} KB`;
+  }
+  return `${size} B`;
+};
+
+const buildFileDataUrl = (file) => {
+  if (!file?.data) {
+    return null;
+  }
+  const mime = file.type || "application/octet-stream";
+  return `data:${mime};base64,${file.data}`;
+};
+
 function StatusBadge({ status }) {
   const color = STATUS_COLORS[status] ?? "neutral";
   return <span className={`status-badge status-${color}`}>{STATUS_LABELS[status] ?? status}</span>;
@@ -52,30 +127,61 @@ function App() {
   const [propertyForm, setPropertyForm] = useState({
     name: "",
     location: "",
-    type: PROPERTY_TYPES[0].value
+    type: PROPERTY_TYPES[0].value,
+    usesPhases: propertyTypeSupportsPhases(PROPERTY_TYPES[0].value)
   });
-  const [unitForm, setUnitForm] = useState({
-    label: "",
-    status: STATUS_OPTIONS[0].value,
-    listPrice: "",
-    salePrice: "",
-    totalReceived: ""
-  });
+  const [unitForm, setUnitForm] = useState(() => createUnitFormState());
   const [showPropertyForm, setShowPropertyForm] = useState(false);
   const [showUnitForm, setShowUnitForm] = useState(false);
   const [showPhaseForm, setShowPhaseForm] = useState(false);
   const [phaseForm, setPhaseForm] = useState({ name: "" });
-  const [editUnitForm, setEditUnitForm] = useState({
-    label: "",
-    status: STATUS_OPTIONS[0].value,
-    listPrice: "",
-    salePrice: "",
-    totalReceived: ""
-  });
+  const [editUnitForm, setEditUnitForm] = useState(() => createUnitFormState());
   const [milestoneForm, setMilestoneForm] = useState({ label: "", amount: "" });
   const [showMilestoneForm, setShowMilestoneForm] = useState(false);
   const [showEditForm, setShowEditForm] = useState(false);
   const [activeTab, setActiveTab] = useState(1);
+
+  const processFileInput = async (event, setter) => {
+    const file = event.target.files?.[0];
+    if (!file) {
+      setter(null);
+      event.target.value = "";
+      return;
+    }
+    try {
+      const payload = await convertFileToPayload(file);
+      setter(payload);
+    } catch (err) {
+      console.error(err);
+      setUnitFormError("Unable to process the selected file. Please try again.");
+    } finally {
+      event.target.value = "";
+    }
+  };
+
+  const applyUnitFormPassportFile = (filePayload) =>
+    setUnitForm((prev) => ({
+      ...prev,
+      buyer: { ...prev.buyer, passportFile: filePayload }
+    }));
+
+  const applyUnitFormContractFile = (filePayload) =>
+    setUnitForm((prev) => ({
+      ...prev,
+      contract: { ...prev.contract, documentFile: filePayload }
+    }));
+
+  const applyEditPassportFile = (filePayload) =>
+    setEditUnitForm((prev) => ({
+      ...prev,
+      buyer: { ...prev.buyer, passportFile: filePayload }
+    }));
+
+  const applyEditContractFile = (filePayload) =>
+    setEditUnitForm((prev) => ({
+      ...prev,
+      contract: { ...prev.contract, documentFile: filePayload }
+    }));
 
   const fetchProperties = useCallback(async (nextSelectedId = null) => {
     try {
@@ -132,13 +238,7 @@ function App() {
   useEffect(() => {
     setSelectedUnit(null);
     setShowUnitForm(false);
-    setUnitForm({
-      label: "",
-      status: STATUS_OPTIONS[0].value,
-      listPrice: "",
-      salePrice: "",
-      totalReceived: ""
-    });
+    setUnitForm(createUnitFormState());
   }, [selectedPhaseId]);
 
   const selectedPhase = useMemo(
@@ -154,26 +254,75 @@ function App() {
     [selectedPhase, selectedUnit]
   );
 
-  const tabData = [
-    {
-      id: 1,
-      title: "Properties",
-      description: selectedProperty ? selectedProperty.name : "Pick a property",
-      enabled: true
+  const passportFileUrl = activeUnit?.unit ? buildFileDataUrl(activeUnit.unit.buyer?.passportFile) : null;
+  const contractFileUrl = activeUnit?.unit ? buildFileDataUrl(activeUnit.unit.contract?.documentFile) : null;
+
+  const mapUnitToFormState = (unit) => ({
+    unitNumber: unit?.unitNumber ?? "",
+    status: unit?.status ?? STATUS_OPTIONS[0].value,
+    listPrice: typeof unit?.listPrice === "number" ? unit.listPrice.toString() : "",
+    salePrice: typeof unit?.salePrice === "number" ? unit.salePrice.toString() : "",
+    totalReceived: typeof unit?.totalReceived === "number" ? unit.totalReceived.toString() : "",
+    buyer: {
+      name: unit?.buyer?.name ?? "",
+      passportNumber: unit?.buyer?.passportNumber ?? "",
+      purchaseDate: unit?.buyer?.purchaseDate ?? "",
+      initialPayment:
+        typeof unit?.buyer?.initialPayment === "number" ? unit?.buyer?.initialPayment.toString() : "",
+      firstPayment:
+        typeof unit?.buyer?.firstPayment === "number" ? unit?.buyer?.firstPayment.toString() : "",
+      secondPayment:
+        typeof unit?.buyer?.secondPayment === "number" ? unit?.buyer?.secondPayment.toString() : "",
+      phone: unit?.buyer?.phone ?? "",
+      passportFile: unit?.buyer?.passportFile ?? null
     },
-    {
-      id: 2,
-      title: "Phases",
-      description: selectedProperty ? `${selectedProperty.phases?.length ?? 0} phases` : "Select a property",
-      enabled: Boolean(selectedProperty)
-    },
-    {
-      id: 3,
-      title: "Phase units",
-      description: selectedPhase ? `${selectedPhase.units?.length ?? 0} units` : "Choose a phase",
-      enabled: Boolean(selectedPhase)
+    contract: {
+      reference: unit?.contract?.reference ?? "",
+      telephone: unit?.contract?.telephone ?? "",
+      documentFile: unit?.contract?.documentFile ?? null
     }
-  ];
+  });
+
+  const propertyUsesPhases = selectedProperty ? selectedProperty.usesPhases !== false : true;
+  const totalUnits =
+    selectedProperty?.phases?.reduce((count, phase) => count + (phase.units?.length ?? 0), 0) ?? 0;
+  const unitTabId = propertyUsesPhases ? 3 : 2;
+
+  const tabData = propertyUsesPhases
+    ? [
+        {
+          id: 1,
+          title: "Properties",
+          description: selectedProperty ? selectedProperty.name : "Pick a property",
+          enabled: true
+        },
+        {
+          id: 2,
+          title: "Phases",
+          description: selectedProperty ? `${selectedProperty.phases?.length ?? 0} phases` : "Select a property",
+          enabled: Boolean(selectedProperty)
+        },
+        {
+          id: 3,
+          title: "Phase units",
+          description: selectedPhase ? `${selectedPhase.units?.length ?? 0} units` : "Choose a phase",
+          enabled: Boolean(selectedPhase)
+        }
+      ]
+    : [
+        {
+          id: 1,
+          title: "Properties",
+          description: selectedProperty ? selectedProperty.name : "Pick a property",
+          enabled: true
+        },
+        {
+          id: 2,
+          title: "Units",
+          description: selectedProperty ? `${totalUnits} units` : "Select a property",
+          enabled: Boolean(selectedProperty)
+        }
+      ];
 
   const mainGridStyle = {};
   const propertyPanelClass = `properties-panel ${activeTab === 1 ? "panel-active" : "panel-active expanding-panel"}`;
@@ -206,22 +355,28 @@ function App() {
   }, [selectedProperty]);
 
   useEffect(() => {
-    if (selectedProperty && !selectedPhase) {
+    if (selectedProperty && propertyUsesPhases && !selectedPhase) {
       setActiveTab(2);
     }
     setShowUnitForm(false);
     setShowPhaseForm(false);
-  }, [selectedProperty, selectedPhase]);
+  }, [selectedProperty, selectedPhase, propertyUsesPhases]);
+
+  useEffect(() => {
+    if (selectedProperty && !propertyUsesPhases && activeTab === 3) {
+      setActiveTab(2);
+    }
+  }, [selectedProperty, propertyUsesPhases, activeTab]);
+
+  useEffect(() => {
+    if (activeTab !== unitTabId && showEditForm) {
+      setShowEditForm(false);
+    }
+  }, [activeTab, unitTabId, showEditForm]);
 
   useEffect(() => {
     if (activeUnit) {
-      setEditUnitForm({
-        label: activeUnit.unit.label,
-        status: activeUnit.unit.status,
-        listPrice: activeUnit.unit.listPrice ?? "",
-        salePrice: activeUnit.unit.salePrice ?? "",
-        totalReceived: activeUnit.unit.totalReceived ?? ""
-      });
+      setEditUnitForm(mapUnitToFormState(activeUnit.unit));
       setMilestoneForm({ label: "", amount: "" });
       setShowMilestoneForm(false);
       setShowEditForm(false);
@@ -237,13 +392,24 @@ function App() {
         headers: {
           "Content-Type": "application/json"
         },
-        body: JSON.stringify(propertyForm)
+        body: JSON.stringify({
+          name: propertyForm.name,
+          location: propertyForm.location,
+          type: propertyForm.type,
+          usesPhases: propertyTypeSupportsPhases(propertyForm.type) ? propertyForm.usesPhases : false
+        })
       });
       const payload = await response.json();
       if (!response.ok) {
         throw new Error(payload.error || "Unable to add property");
       }
-      setPropertyForm({ name: "", location: "", type: PROPERTY_TYPES[0].value });
+      const defaultType = PROPERTY_TYPES[0].value;
+      setPropertyForm({
+        name: "",
+        location: "",
+        type: defaultType,
+        usesPhases: propertyTypeSupportsPhases(defaultType)
+      });
       setSelectedUnit(null);
       await fetchProperties(payload.data?.id);
       setShowPropertyForm(false);
@@ -256,43 +422,63 @@ function App() {
     event.preventDefault();
     setUnitFormError("");
 
-    if (!selectedPropertyId || !selectedPhase) {
-      setUnitFormError("Select a property and phase first.");
+    if (!selectedPropertyId) {
+      setUnitFormError("Select a property first.");
+      return;
+    }
+
+    if (propertyUsesPhases && !selectedPhase) {
+      setUnitFormError("Select a phase first.");
       return;
     }
 
     try {
+      const payloadBody = {
+        unitNumber: unitForm.unitNumber,
+        status: unitForm.status,
+        listPrice: numericOrNull(unitForm.listPrice),
+        salePrice: numericOrNull(unitForm.salePrice),
+        totalReceived: numericOrNull(unitForm.totalReceived),
+        buyer: {
+          name: unitForm.buyer.name,
+          passportNumber: unitForm.buyer.passportNumber,
+          purchaseDate: unitForm.buyer.purchaseDate,
+          initialPayment: numericOrNull(unitForm.buyer.initialPayment),
+          firstPayment: numericOrNull(unitForm.buyer.firstPayment),
+          secondPayment: numericOrNull(unitForm.buyer.secondPayment),
+          phone: unitForm.buyer.phone,
+          passportFile: unitForm.buyer.passportFile
+        },
+        contract: {
+          reference: unitForm.contract.reference,
+          telephone: unitForm.contract.telephone,
+          documentFile: unitForm.contract.documentFile
+        }
+      };
+
+      if (propertyUsesPhases && selectedPhase?.name) {
+        payloadBody.phaseName = selectedPhase.name;
+      }
+
       const response = await fetch(`${API_BASE}/api/properties/${selectedPropertyId}/units`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json"
         },
-        body: JSON.stringify({
-          ...unitForm,
-          listPrice: unitForm.listPrice ? Number(unitForm.listPrice) : null,
-          salePrice: unitForm.salePrice ? Number(unitForm.salePrice) : null,
-          totalReceived: unitForm.totalReceived ? Number(unitForm.totalReceived) : null,
-          phaseName: selectedPhase.name
-        })
+        body: JSON.stringify(payloadBody)
       });
       const payload = await response.json();
       if (!response.ok) {
         throw new Error(payload.error || "Unable to add unit");
       }
-      setUnitForm({
-        label: "",
-        status: STATUS_OPTIONS[0].value,
-        listPrice: "",
-        salePrice: "",
-        totalReceived: ""
-      });
+      setUnitForm(createUnitFormState());
       await fetchProperties(selectedPropertyId);
       const nextPhaseId = payload.data?.phase?.id ?? selectedPhaseId;
       if (nextPhaseId) {
         setSelectedPhaseId(nextPhaseId);
       }
       setSelectedUnit(payload.data?.unit?.id ?? null);
-      setActiveTab(3);
+      setActiveTab(propertyUsesPhases ? 3 : 2);
       setShowUnitForm(false);
     } catch (err) {
       setUnitFormError(err.message);
@@ -328,7 +514,7 @@ function App() {
       await fetchProperties(selectedPropertyId);
       if (newPhase?.id) {
         setSelectedPhaseId(newPhase.id);
-        setActiveTab(3);
+                          setActiveTab(unitTabId);
       }
     } catch (err) {
       setUnitFormError(err.message);
@@ -341,6 +527,29 @@ function App() {
 
     try {
       setUnitFormError("");
+      const payloadBody = {
+        unitNumber: editUnitForm.unitNumber,
+        status: editUnitForm.status,
+        listPrice: numericOrNull(editUnitForm.listPrice),
+        salePrice: numericOrNull(editUnitForm.salePrice),
+        totalReceived: numericOrNull(editUnitForm.totalReceived),
+        buyer: {
+          name: editUnitForm.buyer.name,
+          passportNumber: editUnitForm.buyer.passportNumber,
+          purchaseDate: editUnitForm.buyer.purchaseDate,
+          initialPayment: numericOrNull(editUnitForm.buyer.initialPayment),
+          firstPayment: numericOrNull(editUnitForm.buyer.firstPayment),
+          secondPayment: numericOrNull(editUnitForm.buyer.secondPayment),
+          phone: editUnitForm.buyer.phone,
+          passportFile: editUnitForm.buyer.passportFile
+        },
+        contract: {
+          reference: editUnitForm.contract.reference,
+          telephone: editUnitForm.contract.telephone,
+          documentFile: editUnitForm.contract.documentFile
+        }
+      };
+
       const response = await fetch(
         `${API_BASE}/api/properties/${selectedPropertyId}/units/${selectedUnit}`,
         {
@@ -348,13 +557,7 @@ function App() {
           headers: {
             "Content-Type": "application/json"
           },
-          body: JSON.stringify({
-            label: editUnitForm.label,
-            status: editUnitForm.status,
-            listPrice: editUnitForm.listPrice ? Number(editUnitForm.listPrice) : null,
-            salePrice: editUnitForm.salePrice ? Number(editUnitForm.salePrice) : null,
-            totalReceived: editUnitForm.totalReceived ? Number(editUnitForm.totalReceived) : null
-          })
+          body: JSON.stringify(payloadBody)
         }
       );
       const payload = await response.json();
@@ -600,9 +803,23 @@ function App() {
                           <span>Type</span>
                           <select
                             value={propertyForm.type}
-                            onChange={(event) =>
-                              setPropertyForm((prev) => ({ ...prev, type: event.target.value }))
-                            }
+                            onChange={(event) => {
+                              const nextType = event.target.value;
+                              setPropertyForm((prev) => {
+                                const supportsNextType = propertyTypeSupportsPhases(nextType);
+                                const supportsPreviousType = propertyTypeSupportsPhases(prev.type);
+                                const nextUsesPhases = supportsNextType
+                                  ? supportsPreviousType
+                                    ? prev.usesPhases
+                                    : true
+                                  : false;
+                                return {
+                                  ...prev,
+                                  type: nextType,
+                                  usesPhases: nextUsesPhases
+                                };
+                              });
+                            }}
                           >
                             {PROPERTY_TYPES.map((option) => (
                               <option key={option.value} value={option.value}>
@@ -610,6 +827,24 @@ function App() {
                               </option>
                             ))}
                           </select>
+                        </label>
+                        <label className="checkbox-field">
+                          <span>Track this property with phases</span>
+                          <div className="checkbox-input">
+                            <input
+                              type="checkbox"
+                              id="property-uses-phases"
+                              checked={propertyForm.usesPhases}
+                              onChange={(event) =>
+                                setPropertyForm((prev) => ({ ...prev, usesPhases: event.target.checked }))
+                              }
+                              disabled={!propertyTypeSupportsPhases(propertyForm.type)}
+                            />
+                            <span>{propertyForm.usesPhases ? "Phases enabled" : "Single inventory"}</span>
+                          </div>
+                          {!propertyTypeSupportsPhases(propertyForm.type) && (
+                            <span className="property-meta">Villas are tracked without phases.</span>
+                          )}
                         </label>
                         {propertyFormError && <p className="form-error">{propertyFormError}</p>}
                         <div className="form-actions">
@@ -632,7 +867,7 @@ function App() {
               </>
             )}
 
-            {activeTab === 2 && (
+            {propertyUsesPhases && activeTab === 2 && (
               <>
                 <div className="panel-header">
                   <h2>Phases</h2>
@@ -647,7 +882,7 @@ function App() {
                           className={`phase-tab ${phase.id === selectedPhaseId ? "active" : ""}`}
                           onClick={() => {
                             setSelectedPhaseId(phase.id);
-                            setActiveTab(3);
+                            setActiveTab(unitTabId);
                           }}
                     >
                       <span>{phase.name}</span>
@@ -708,7 +943,7 @@ function App() {
               </>
             )}
 
-            {activeTab === 3 && (
+            {((propertyUsesPhases && activeTab === 3) || (!propertyUsesPhases && activeTab === 2)) && (
               <>
                 <div className="panel-header">
                   <div className="active-property-header">
@@ -719,6 +954,7 @@ function App() {
                     <div className="property-line compact">
                       <p className="property-meta">{selectedProperty?.location}</p>
                       <PropertyTypeBadge type={selectedProperty?.type} />
+                      {!propertyUsesPhases && <span className="pill">No phases</span>}
                     </div>
                   </div>
                 </div>
@@ -749,7 +985,17 @@ function App() {
                           onClick={() => setSelectedUnit((current) => (current === unit.id ? null : unit.id))}
                         >
                           <td>
-                            <p className="unit-name">{unit.label}</p>
+                            <p className="unit-name">{unit.unitNumber}</p>
+                            <p className="unit-subtext">
+                              {unit.buyer?.name ? unit.buyer.name : "No buyer assigned"}
+                            </p>
+                            {unit.buyer?.passportNumber && (
+                              <p className="unit-subtext">Passport: {unit.buyer.passportNumber}</p>
+                            )}
+                            {unit.buyer?.phone && <p className="unit-subtext">Phone: {unit.buyer.phone}</p>}
+                            {unit.contract?.reference && (
+                              <p className="unit-subtext">Contract: {unit.contract.reference}</p>
+                            )}
                           </td>
                           <td>
                             {typeof unit.listPrice === "number" ? (
@@ -797,7 +1043,7 @@ function App() {
                                 <span
                                   className="delete-icon unit-delete-icon"
                                   role="button"
-                                  aria-label={`Delete ${unit.label}`}
+                                  aria-label={`Delete ${unit.unitNumber}`}
                                   onClick={(event) => {
                                     event.stopPropagation();
                                     void handleUnitDelete(unit.id);
@@ -841,14 +1087,14 @@ function App() {
                           </div>
                           <form onSubmit={handleUnitSubmit} className="stacked-form">
                             <label>
-                          <span>Unit label</span>
+                          <span>Unit number</span>
                           <input
                             type="text"
-                            value={unitForm.label}
+                            value={unitForm.unitNumber}
                             onChange={(event) =>
-                              setUnitForm((prev) => ({ ...prev, label: event.target.value }))
+                              setUnitForm((prev) => ({ ...prev, unitNumber: event.target.value }))
                             }
-                            placeholder="e.g., Unit 5C"
+                            placeholder="e.g., Villa 8"
                             required
                           />
                         </label>
@@ -902,13 +1148,214 @@ function App() {
                                 ))}
                               </select>
                             </label>
+                        <div className="form-divider">
+                          <p className="eyebrow">Buyer</p>
+                          <div className="form-grid">
+                            <label>
+                              <span>Buyer name</span>
+                              <input
+                                type="text"
+                                value={unitForm.buyer.name}
+                                onChange={(event) =>
+                                  setUnitForm((prev) => ({
+                                    ...prev,
+                                    buyer: { ...prev.buyer, name: event.target.value }
+                                  }))
+                                }
+                                placeholder="e.g., Maria Lopez"
+                              />
+                            </label>
+                            <label>
+                              <span>Passport number</span>
+                              <input
+                                type="text"
+                                value={unitForm.buyer.passportNumber}
+                                onChange={(event) =>
+                                  setUnitForm((prev) => ({
+                                    ...prev,
+                                    buyer: { ...prev.buyer, passportNumber: event.target.value }
+                                  }))
+                                }
+                                placeholder="e.g., A1234567"
+                              />
+                            </label>
+                            <label>
+                              <span>Purchase date</span>
+                              <input
+                                type="date"
+                                value={unitForm.buyer.purchaseDate}
+                                onChange={(event) =>
+                                  setUnitForm((prev) => ({
+                                    ...prev,
+                                    buyer: { ...prev.buyer, purchaseDate: event.target.value }
+                                  }))
+                                }
+                              />
+                            </label>
+                            <label>
+                              <span>Phone number</span>
+                              <input
+                                type="tel"
+                                value={unitForm.buyer.phone}
+                                onChange={(event) =>
+                                  setUnitForm((prev) => ({
+                                    ...prev,
+                                    buyer: { ...prev.buyer, phone: event.target.value }
+                                  }))
+                                }
+                                placeholder="+971500000000"
+                              />
+                            </label>
+                            <label>
+                              <span>Initial payment</span>
+                              <input
+                                type="number"
+                                min="0"
+                                step="1000"
+                                value={unitForm.buyer.initialPayment}
+                                onChange={(event) =>
+                                  setUnitForm((prev) => ({
+                                    ...prev,
+                                    buyer: { ...prev.buyer, initialPayment: event.target.value }
+                                  }))
+                                }
+                                placeholder="e.g., 50000"
+                              />
+                            </label>
+                            <label>
+                              <span>First payment</span>
+                              <input
+                                type="number"
+                                min="0"
+                                step="1000"
+                                value={unitForm.buyer.firstPayment}
+                                onChange={(event) =>
+                                  setUnitForm((prev) => ({
+                                    ...prev,
+                                    buyer: { ...prev.buyer, firstPayment: event.target.value }
+                                  }))
+                                }
+                                placeholder="e.g., 30000"
+                              />
+                            </label>
+                            <label>
+                              <span>Second payment</span>
+                              <input
+                                type="number"
+                                min="0"
+                                step="1000"
+                                value={unitForm.buyer.secondPayment}
+                                onChange={(event) =>
+                                  setUnitForm((prev) => ({
+                                    ...prev,
+                                    buyer: { ...prev.buyer, secondPayment: event.target.value }
+                                  }))
+                                }
+                                placeholder="e.g., 20000"
+                              />
+                            </label>
+                          </div>
+                          <div className="file-field">
+                            <span>Passport document</span>
+                            <input
+                              type="file"
+                              accept="application/pdf,image/*"
+                              onChange={(event) => processFileInput(event, applyUnitFormPassportFile)}
+                            />
+                            <p className="file-meta">
+                              {unitForm.buyer.passportFile?.name
+                                ? `Uploaded: ${unitForm.buyer.passportFile.name}${
+                                    unitForm.buyer.passportFile.size
+                                      ? ` (${formatFileSize(unitForm.buyer.passportFile.size)})`
+                                      : ""
+                                  }`
+                                : "Attach a PDF or image of the passport."}
+                            </p>
+                            {unitForm.buyer.passportFile && (
+                              <button
+                                type="button"
+                                className="file-remove-btn"
+                                onClick={() => applyUnitFormPassportFile(null)}
+                              >
+                                Remove file
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                        <div className="form-divider">
+                          <p className="eyebrow">Contract</p>
+                          <div className="form-grid">
+                            <label>
+                              <span>Contract reference</span>
+                              <input
+                                type="text"
+                                value={unitForm.contract.reference}
+                                onChange={(event) =>
+                                  setUnitForm((prev) => ({
+                                    ...prev,
+                                    contract: { ...prev.contract, reference: event.target.value }
+                                  }))
+                                }
+                                placeholder="e.g., CT-0091"
+                              />
+                            </label>
+                            <label>
+                              <span>Telephone</span>
+                              <input
+                                type="tel"
+                                value={unitForm.contract.telephone}
+                                onChange={(event) =>
+                                  setUnitForm((prev) => ({
+                                    ...prev,
+                                    contract: { ...prev.contract, telephone: event.target.value }
+                                  }))
+                                }
+                                placeholder="+9714000000"
+                              />
+                            </label>
+                          </div>
+                          <div className="file-field">
+                            <span>Signed contract</span>
+                            <input
+                              type="file"
+                              accept="application/pdf,image/*"
+                              onChange={(event) => processFileInput(event, applyUnitFormContractFile)}
+                            />
+                            <p className="file-meta">
+                              {unitForm.contract.documentFile?.name
+                                ? `Uploaded: ${unitForm.contract.documentFile.name}${
+                                    unitForm.contract.documentFile.size
+                                      ? ` (${formatFileSize(unitForm.contract.documentFile.size)})`
+                                      : ""
+                                  }`
+                                : "Upload the executed contract (PDF or image)."}
+                            </p>
+                            {unitForm.contract.documentFile && (
+                              <button
+                                type="button"
+                                className="file-remove-btn"
+                                onClick={() => applyUnitFormContractFile(null)}
+                              >
+                                Remove file
+                              </button>
+                            )}
+                          </div>
+                        </div>
                             {unitFormError && <p className="form-error">{unitFormError}</p>}
                             <div className="form-actions">
                               <button type="button" className="ghost-btn" onClick={() => setShowUnitForm(false)}>
                                 Cancel
                               </button>
-                              <button type="submit" className="primary-btn" disabled={!selectedPhase}>
-                                {selectedPhase ? "Save unit" : "Select a phase first"}
+                              <button
+                                type="submit"
+                                className="primary-btn"
+                                disabled={!selectedPropertyId || (propertyUsesPhases && !selectedPhase)}
+                              >
+                                {!selectedPropertyId
+                                  ? "Select a property first"
+                                  : propertyUsesPhases && !selectedPhase
+                                  ? "Select a phase first"
+                                  : "Save unit"}
                               </button>
                             </div>
                           </form>
@@ -918,7 +1365,7 @@ function App() {
                           className="floating-btn"
                           type="button"
                           onClick={() => setShowUnitForm(true)}
-                          disabled={!selectedPhase}
+                          disabled={!selectedPropertyId || (propertyUsesPhases && !selectedPhase)}
                         >
                           +
                           <span className="sr-only">Add unit</span>
@@ -927,7 +1374,9 @@ function App() {
                     </div>
                   </div>
                 ) : (
-                  <p className="property-meta">Select a phase to view its units.</p>
+                  <p className="property-meta">
+                    {propertyUsesPhases ? "Select a phase to view its units." : "No units captured for this property yet."}
+                  </p>
                 )}
               </>
             )}
@@ -941,10 +1390,15 @@ function App() {
           <div className="drawer-header-row">
             <div>
               <p className="eyebrow">Unit detail</p>
-              <h3>{activeUnit.unit.label}</h3>
+              <h3>{activeUnit.unit.unitNumber}</h3>
             </div>
             <div className="drawer-actions">
-              <button className="ghost-btn" type="button" onClick={() => setShowEditForm((v) => !v)}>
+              <button
+                className="ghost-btn"
+                type="button"
+                onClick={() => setShowEditForm((v) => !v)}
+                disabled={activeTab !== unitTabId}
+              >
                 {showEditForm ? "Close edit" : "Edit unit"}
               </button>
             </div>
@@ -953,21 +1407,151 @@ function App() {
             {selectedProperty?.name} • {activeUnit.phase.name}
           </p>
           <StatusBadge status={activeUnit.unit.status} />
-          {showEditForm && (
+          <div className="detail-grid">
+            <article className="detail-card">
+              <p className="eyebrow">Buyer</p>
+              <dl className="detail-list">
+                <div>
+                  <dt>Name</dt>
+                  <dd>{activeUnit.unit.buyer?.name || "Not assigned"}</dd>
+                </div>
+                <div>
+                  <dt>Passport</dt>
+                  <dd>{activeUnit.unit.buyer?.passportNumber || "—"}</dd>
+                </div>
+                <div>
+                  <dt>Purchase date</dt>
+                  <dd>{activeUnit.unit.buyer?.purchaseDate || "—"}</dd>
+                </div>
+                <div>
+                  <dt>Phone</dt>
+                  <dd>{activeUnit.unit.buyer?.phone || "—"}</dd>
+                </div>
+                <div>
+                  <dt>Initial payment</dt>
+                  <dd>
+                    {typeof activeUnit.unit.buyer?.initialPayment === "number"
+                      ? `$${activeUnit.unit.buyer.initialPayment.toLocaleString()}`
+                      : "—"}
+                  </dd>
+                </div>
+                <div>
+                  <dt>First payment</dt>
+                  <dd>
+                    {typeof activeUnit.unit.buyer?.firstPayment === "number"
+                      ? `$${activeUnit.unit.buyer.firstPayment.toLocaleString()}`
+                      : "—"}
+                  </dd>
+                </div>
+                <div>
+                  <dt>Second payment</dt>
+                  <dd>
+                    {typeof activeUnit.unit.buyer?.secondPayment === "number"
+                      ? `$${activeUnit.unit.buyer.secondPayment.toLocaleString()}`
+                      : "—"}
+                  </dd>
+                </div>
+                <div>
+                  <dt>Passport file</dt>
+                  <dd>
+                    {passportFileUrl ? (
+                      <>
+                        <a
+                          className="file-link"
+                          href={passportFileUrl}
+                          download={activeUnit.unit.buyer?.passportFile?.name || "passport"}
+                        >
+                          Download {activeUnit.unit.buyer?.passportFile?.name || "passport"}
+                        </a>
+                        {typeof activeUnit.unit.buyer?.passportFile?.size === "number" && (
+                          <span className="file-meta-inline">
+                            ({formatFileSize(activeUnit.unit.buyer.passportFile.size)})
+                          </span>
+                        )}
+                      </>
+                    ) : (
+                      "No file uploaded"
+                    )}
+                  </dd>
+                </div>
+              </dl>
+            </article>
+            <article className="detail-card">
+              <p className="eyebrow">Contract</p>
+              <dl className="detail-list">
+                <div>
+                  <dt>Reference</dt>
+                  <dd>{activeUnit.unit.contract?.reference || "—"}</dd>
+                </div>
+                <div>
+                  <dt>Telephone</dt>
+                  <dd>{activeUnit.unit.contract?.telephone || "—"}</dd>
+                </div>
+                <div>
+                  <dt>List price</dt>
+                  <dd>
+                    {typeof activeUnit.unit.listPrice === "number"
+                      ? `$${activeUnit.unit.listPrice.toLocaleString()}`
+                      : "—"}
+                  </dd>
+                </div>
+                <div>
+                  <dt>Sale price</dt>
+                  <dd>
+                    {typeof activeUnit.unit.salePrice === "number"
+                      ? `$${activeUnit.unit.salePrice.toLocaleString()}`
+                      : "—"}
+                  </dd>
+                </div>
+                <div>
+                  <dt>Total received</dt>
+                  <dd>
+                    {typeof activeUnit.unit.totalReceived === "number"
+                      ? `$${activeUnit.unit.totalReceived.toLocaleString()}`
+                      : "—"}
+                  </dd>
+                </div>
+                <div>
+                  <dt>Contract file</dt>
+                  <dd>
+                    {contractFileUrl ? (
+                      <>
+                        <a
+                          className="file-link"
+                          href={contractFileUrl}
+                          download={activeUnit.unit.contract?.documentFile?.name || "contract"}
+                        >
+                          Download {activeUnit.unit.contract?.documentFile?.name || "contract"}
+                        </a>
+                        {typeof activeUnit.unit.contract?.documentFile?.size === "number" && (
+                          <span className="file-meta-inline">
+                            ({formatFileSize(activeUnit.unit.contract.documentFile.size)})
+                          </span>
+                        )}
+                      </>
+                    ) : (
+                      "No file uploaded"
+                    )}
+                  </dd>
+                </div>
+              </dl>
+            </article>
+          </div>
+          {showEditForm && activeTab === unitTabId && (
             <article className="form-card inline-form">
           <div className="panel-header">
             <div>
               <p className="eyebrow">Edit unit</p>
-              <h3>{activeUnit.unit.label}</h3>
+              <h3>{activeUnit.unit.unitNumber}</h3>
             </div>
           </div>
           <form onSubmit={handleUnitEditSubmit} className="stacked-form">
             <label>
-              <span>Unit label</span>
+              <span>Unit number</span>
               <input
                 type="text"
-                value={editUnitForm.label}
-                onChange={(event) => setEditUnitForm((prev) => ({ ...prev, label: event.target.value }))}
+                value={editUnitForm.unitNumber}
+                onChange={(event) => setEditUnitForm((prev) => ({ ...prev, unitNumber: event.target.value }))}
                 required
               />
             </label>
@@ -1016,6 +1600,183 @@ function App() {
                 ))}
               </select>
             </label>
+            <div className="form-divider">
+              <p className="eyebrow">Buyer</p>
+              <div className="form-grid">
+                <label>
+                  <span>Buyer name</span>
+                  <input
+                    type="text"
+                    value={editUnitForm.buyer.name}
+                    onChange={(event) =>
+                      setEditUnitForm((prev) => ({
+                        ...prev,
+                        buyer: { ...prev.buyer, name: event.target.value }
+                      }))
+                    }
+                  />
+                </label>
+                <label>
+                  <span>Passport number</span>
+                  <input
+                    type="text"
+                    value={editUnitForm.buyer.passportNumber}
+                    onChange={(event) =>
+                      setEditUnitForm((prev) => ({
+                        ...prev,
+                        buyer: { ...prev.buyer, passportNumber: event.target.value }
+                      }))
+                    }
+                  />
+                </label>
+                <label>
+                  <span>Purchase date</span>
+                  <input
+                    type="date"
+                    value={editUnitForm.buyer.purchaseDate}
+                    onChange={(event) =>
+                      setEditUnitForm((prev) => ({
+                        ...prev,
+                        buyer: { ...prev.buyer, purchaseDate: event.target.value }
+                      }))
+                    }
+                  />
+                </label>
+                <label>
+                  <span>Phone number</span>
+                  <input
+                    type="tel"
+                    value={editUnitForm.buyer.phone}
+                    onChange={(event) =>
+                      setEditUnitForm((prev) => ({
+                        ...prev,
+                        buyer: { ...prev.buyer, phone: event.target.value }
+                      }))
+                    }
+                  />
+                </label>
+                <label>
+                  <span>Initial payment</span>
+                  <input
+                    type="number"
+                    min="0"
+                    step="1000"
+                    value={editUnitForm.buyer.initialPayment}
+                    onChange={(event) =>
+                      setEditUnitForm((prev) => ({
+                        ...prev,
+                        buyer: { ...prev.buyer, initialPayment: event.target.value }
+                      }))
+                    }
+                  />
+                </label>
+                <label>
+                  <span>First payment</span>
+                  <input
+                    type="number"
+                    min="0"
+                    step="1000"
+                    value={editUnitForm.buyer.firstPayment}
+                    onChange={(event) =>
+                      setEditUnitForm((prev) => ({
+                        ...prev,
+                        buyer: { ...prev.buyer, firstPayment: event.target.value }
+                      }))
+                    }
+                  />
+                </label>
+                <label>
+                  <span>Second payment</span>
+                  <input
+                    type="number"
+                    min="0"
+                    step="1000"
+                    value={editUnitForm.buyer.secondPayment}
+                    onChange={(event) =>
+                      setEditUnitForm((prev) => ({
+                        ...prev,
+                        buyer: { ...prev.buyer, secondPayment: event.target.value }
+                      }))
+                    }
+                  />
+                </label>
+              </div>
+              <div className="file-field">
+                <span>Passport document</span>
+                <input
+                  type="file"
+                  accept="application/pdf,image/*"
+                  onChange={(event) => processFileInput(event, applyEditPassportFile)}
+                />
+                <p className="file-meta">
+                  {editUnitForm.buyer.passportFile?.name
+                    ? `Uploaded: ${editUnitForm.buyer.passportFile.name}${
+                        editUnitForm.buyer.passportFile.size
+                          ? ` (${formatFileSize(editUnitForm.buyer.passportFile.size)})`
+                          : ""
+                      }`
+                    : "Attach a PDF or image of the passport."}
+                </p>
+                {editUnitForm.buyer.passportFile && (
+                  <button type="button" className="file-remove-btn" onClick={() => applyEditPassportFile(null)}>
+                    Remove file
+                  </button>
+                )}
+              </div>
+            </div>
+            <div className="form-divider">
+              <p className="eyebrow">Contract</p>
+              <div className="form-grid">
+                <label>
+                  <span>Contract reference</span>
+                  <input
+                    type="text"
+                    value={editUnitForm.contract.reference}
+                    onChange={(event) =>
+                      setEditUnitForm((prev) => ({
+                        ...prev,
+                        contract: { ...prev.contract, reference: event.target.value }
+                      }))
+                    }
+                  />
+                </label>
+                <label>
+                  <span>Telephone</span>
+                  <input
+                    type="tel"
+                    value={editUnitForm.contract.telephone}
+                    onChange={(event) =>
+                      setEditUnitForm((prev) => ({
+                        ...prev,
+                        contract: { ...prev.contract, telephone: event.target.value }
+                      }))
+                    }
+                  />
+                </label>
+              </div>
+              <div className="file-field">
+                <span>Signed contract</span>
+                <input
+                  type="file"
+                  accept="application/pdf,image/*"
+                  onChange={(event) => processFileInput(event, applyEditContractFile)}
+                />
+                <p className="file-meta">
+                  {editUnitForm.contract.documentFile?.name
+                    ? `Uploaded: ${editUnitForm.contract.documentFile.name}${
+                        editUnitForm.contract.documentFile.size
+                          ? ` (${formatFileSize(editUnitForm.contract.documentFile.size)})`
+                          : ""
+                      }`
+                    : "Upload the executed contract (PDF or image)."}
+                </p>
+                {editUnitForm.contract.documentFile && (
+                  <button type="button" className="file-remove-btn" onClick={() => applyEditContractFile(null)}>
+                    Remove file
+                  </button>
+                )}
+              </div>
+            </div>
             {unitFormError && <p className="form-error">{unitFormError}</p>}
             <div className="form-actions">
               <button
@@ -1024,13 +1785,7 @@ function App() {
                 onClick={() => {
                   setShowEditForm(false);
                   setUnitFormError("");
-                  setEditUnitForm({
-                    label: activeUnit.unit.label,
-                    status: activeUnit.unit.status,
-                    listPrice: activeUnit.unit.listPrice ?? "",
-                    salePrice: activeUnit.unit.salePrice ?? "",
-                    totalReceived: activeUnit.unit.totalReceived ?? ""
-                  });
+                  setEditUnitForm(mapUnitToFormState(activeUnit.unit));
                 }}
               >
                 Cancel

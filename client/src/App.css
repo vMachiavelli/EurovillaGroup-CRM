@@ -562,6 +562,12 @@ tr.active-row {
   margin-bottom: 0.2rem;
 }
 
+.unit-subtext {
+  margin: 0.1rem 0 0;
+  font-size: 0.78rem;
+  color: #9ca3af;
+}
+
 .status-badge {
   padding: 0.25rem 0.6rem;
   border-radius: 999px;
@@ -703,6 +709,82 @@ tr.active-row {
   color: #f3f4f6;
 }
 
+.checkbox-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.checkbox-field .checkbox-input {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.85rem;
+  color: #9ca3af;
+}
+
+.checkbox-field input[type="checkbox"] {
+  width: 1rem;
+  height: 1rem;
+  accent-color: #6366f1;
+}
+
+.form-divider {
+  border-top: 1px solid #1f2937;
+  padding-top: 0.75rem;
+  margin-top: 0.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+.file-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.form-grid .file-field {
+  grid-column: 1 / -1;
+}
+
+.file-field input[type="file"] {
+  border: 1px dashed #1f2937;
+  border-radius: 8px;
+  padding: 0.75rem;
+  background-color: #030712;
+  color: #f3f4f6;
+}
+
+.file-meta {
+  margin: 0;
+  font-size: 0.8rem;
+  color: #9ca3af;
+}
+
+.file-meta-inline {
+  margin-left: 0.35rem;
+  font-size: 0.75rem;
+  color: #9ca3af;
+}
+
+.file-remove-btn {
+  align-self: flex-start;
+  padding: 0.35rem 0.75rem;
+  border-radius: 6px;
+  border: 1px solid #374151;
+  background: transparent;
+  color: #f87171;
+  cursor: pointer;
+  font-size: 0.8rem;
+}
+
+.file-remove-btn:hover,
+.file-remove-btn:focus-visible {
+  border-color: #f87171;
+  color: #fecaca;
+}
+
 .primary-btn {
   padding: 0.7rem 1rem;
   border-radius: 8px;
@@ -729,6 +811,57 @@ tr.active-row {
   border-radius: 12px;
   padding: 1rem;
   background-color: #030712;
+}
+
+.detail-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 0.75rem;
+  margin: 1rem 0;
+}
+
+.detail-card {
+  border: 1px solid #1f2937;
+  border-radius: 12px;
+  padding: 0.75rem 1rem;
+  background-color: #0b1120;
+}
+
+.detail-list {
+  margin: 0.5rem 0 0;
+  padding: 0;
+  display: grid;
+  gap: 0.35rem;
+}
+
+.detail-list div {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.detail-list dt {
+  margin: 0;
+  font-size: 0.78rem;
+  color: #9ca3af;
+}
+
+.detail-list dd {
+  margin: 0;
+  font-size: 0.9rem;
+  color: #e5e7eb;
+  text-align: right;
+}
+
+.file-link {
+  color: #8b93ff;
+  text-decoration: none;
+  font-weight: 600;
+}
+
+.file-link:hover,
+.file-link:focus-visible {
+  text-decoration: underline;
 }
 
 .drawer-header-row {
