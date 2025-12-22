@@ -9,14 +9,50 @@
   --prop-width: 260px;
   --phase-width: 220px;
   --details-width: 1fr;
+  --bg-page: #030712;
+  --text-main: #e5e7eb;
 }
 
 html,
 body {
   margin: 0;
   width: 100%;
-  min-height: 100%;
-  background-color: #030712;
+  min-height: 100vh;
+  background-color: var(--bg-page);
+  color: var(--text-main);
+  transition: background-color 200ms ease, color 200ms ease;
+}
+
+.light-mode {
+  --bg-page: #f3f4f6;
+  --text-main: #0b0f19;
+}
+
+.top-bar {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  padding: 0.25rem 0 0.5rem;
+}
+
+.theme-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  border: 1px solid #1f2937;
+  background: #0b1120;
+  color: #e5e7eb;
+  border-radius: 999px;
+  padding: 0.45rem 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: border-color 150ms ease, background-color 150ms ease, transform 150ms ease;
+}
+
+.theme-toggle:hover,
+.theme-toggle:focus-visible {
+  border-color: #6366f1;
+  transform: translateY(-1px);
 }
 
 header {
@@ -87,11 +123,140 @@ header {
   color: #9ca3af;
 }
 
+.light-mode .app-shell {
+  background-color: #f3f4f6;
+  color: #0b0f19;
+}
+
+.light-mode .selection-tab {
+  background-color: #ffffff;
+  border-color: #d0d5dd;
+  color: #0b0f19;
+}
+
+.light-mode .selection-tab.active {
+  background-color: #eef1f5;
+  border-color: #94a3b8;
+}
+
+.light-mode .selection-tab-detail {
+  color: #4b5563;
+}
+
+.light-mode .properties-panel,
+.light-mode .details-panel,
+.light-mode .phase-panel,
+.light-mode .drawer {
+  background-color: #f8fafc;
+  border-color: #d0d5dd;
+  color: #0b0f19;
+}
+
+.light-mode .panel-collapsed::after {
+  color: #0b0f19;
+  background: #f8fafc;
+  border-color: #d0d5dd;
+}
+
+.light-mode .property,
+.light-mode .phase-tab,
+.light-mode .phase-card,
+.light-mode .form-card {
+  background-color: #ffffff;
+  border-color: #d0d5dd;
+  color: #0b0f19;
+}
+
+.light-mode .phase-tab.active {
+  background: #e8edf5;
+  border-color: #94a3b8;
+  box-shadow: none;
+}
+
+.light-mode .eyebrow,
+.light-mode .property-meta,
+.light-mode .phase-tab .eyebrow,
+.light-mode .selection-tab-detail,
+.light-mode .inline-eyebrow {
+  color: #4b5563;
+}
+
+.light-mode .inline-eyebrow .eyebrow-value {
+  color: #0f172a;
+}
+
+.light-mode .pill {
+  background: #e5e7eb;
+  color: #111827;
+}
+
+.light-mode .type-badge {
+  background-color: #eef2f6;
+  color: #0b0f19;
+  border-color: #d0d5dd;
+}
+
+.light-mode .delete-icon {
+  background: #ffffff;
+  color: #dc2626;
+  box-shadow: 0 0 0 1px rgba(220, 38, 38, 0.15), 0 4px 8px rgba(0, 0, 0, 0.08);
+}
+
+.light-mode .floating-btn {
+  background: #ffffff;
+  border-color: #d0d5dd;
+  color: #0b0f19;
+}
+
+.light-mode .ghost-btn {
+  color: #0b0f19;
+  border-color: #d0d5dd;
+}
+
+.light-mode .stacked-form label {
+  color: #111827;
+}
+
+.light-mode .stacked-form input,
+.light-mode .stacked-form select,
+.light-mode textarea {
+  background: #ffffff;
+  color: #0b0f19;
+  border-color: #d0d5dd;
+}
+
+.light-mode .file-field input[type="file"] {
+  background: #ffffff;
+  color: #0b0f19;
+  border-color: #cbd5e1;
+}
+
+.light-mode .form-divider {
+  border-color: #e2e8f0;
+}
+
+.light-mode th {
+  color: #6b7280;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.light-mode td {
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.light-mode tr.active-row {
+  background-color: #e8edf5;
+}
+
+.light-mode .theme-toggle {
+  background: #ffffff;
+  color: #0b0f19;
+  border-color: #d0d5dd;
+}
 .main-grid {
   display: grid;
   grid-template-columns: 1fr;
   gap: 1rem;
-  min-height: 60vh;
   width: 100%;
   transition: grid-template-columns 0.5s ease, width 0.5s ease;
 }
@@ -568,6 +733,30 @@ tr.active-row {
   color: #9ca3af;
 }
 
+.light-mode .units-table tbody tr td {
+  background-color: #ffffff;
+  border-color: #d0d5dd;
+}
+
+.light-mode .units-table tbody tr.active-row td {
+  background-color: #eef1f5;
+}
+
+.light-mode .units-table tbody tr td:first-child,
+.light-mode .units-table tbody tr td:last-child {
+  border-color: #d0d5dd;
+}
+
+.light-mode .milestone {
+  background-color: #0f172a;
+  color: #ffffff;
+}
+
+.light-mode .milestone-complete {
+  background-color: #0f766e;
+  color: #ffffff;
+}
+
 .status-badge {
   padding: 0.25rem 0.6rem;
   border-radius: 999px;
@@ -583,6 +772,7 @@ tr.active-row {
 
 .status-info {
   background-color: #1d4ed8;
+  color: #fff;
 }
 
 .status-warning {
@@ -592,11 +782,12 @@ tr.active-row {
 
 .status-accent {
   background-color: #6366f1;
+  color: #fff;
 }
 
 .status-success {
   background-color: #10b981;
-  color: #111;
+  color: #fff;
 }
 
 .milestones {
@@ -614,6 +805,7 @@ tr.active-row {
   padding: 0.2rem 0.6rem;
   border-radius: 8px;
   font-size: 0.85rem;
+  color: #ffffff;
 }
 
 .milestone-complete {
