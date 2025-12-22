@@ -140,6 +140,24 @@ function App() {
   const [showMilestoneForm, setShowMilestoneForm] = useState(false);
   const [showEditForm, setShowEditForm] = useState(false);
   const [activeTab, setActiveTab] = useState(1);
+  const [theme, setTheme] = useState(() => {
+    if (typeof window !== "undefined") {
+      const stored = window.localStorage.getItem("theme");
+      if (stored === "light" || stored === "dark") {
+        return stored;
+      }
+    }
+    return "dark";
+  });
+
+  useEffect(() => {
+    const isLight = theme === "light";
+    document.body.classList.toggle("light-mode", isLight);
+    document.documentElement.classList.toggle("light-mode", isLight);
+    if (typeof window !== "undefined") {
+      window.localStorage.setItem("theme", theme);
+    }
+  }, [theme]);
 
   const processFileInput = async (event, setter) => {
     const file = event.target.files?.[0];
@@ -687,8 +705,26 @@ function App() {
     }
   };
 
+  const themeToggleLabel = theme === "light" ? "Switch to dark mode" : "Switch to light mode";
+
   return (
     <div className="app-shell">
+      <header className="top-bar">
+        <div>
+          <p className="eyebrow">ATT CRM</p>
+          <h1 className="page-title">Property dashboard</h1>
+        </div>
+        <button
+          type="button"
+          className="theme-toggle"
+          onClick={() => setTheme((current) => (current === "light" ? "dark" : "light"))}
+          aria-label={themeToggleLabel}
+          aria-pressed={theme === "light"}
+        >
+          {theme === "light" ? "Light mode" : "Dark mode"}
+        </button>
+      </header>
+
       <div className="selection-tabs" role="tablist" aria-label="Selection steps">
         {tabData.map((tab) => (
           <button
@@ -754,9 +790,9 @@ function App() {
                           ×
                         </span>
                         <p className="eyebrow">#{property.id}</p>
-                        <p className="property-name">{property.name}</p>
-                        <div className="property-line">
-                          <p className="property-meta">{property.location}</p>
+                        <div className="property-name-row">
+                          <p className="property-name">{property.name}</p>
+                          <p className="property-meta inline-location">{property.location}</p>
                           <PropertyTypeBadge type={property.type} />
                         </div>
                       </button>
@@ -986,16 +1022,6 @@ function App() {
                         >
                           <td>
                             <p className="unit-name">{unit.unitNumber}</p>
-                            <p className="unit-subtext">
-                              {unit.buyer?.name ? unit.buyer.name : "No buyer assigned"}
-                            </p>
-                            {unit.buyer?.passportNumber && (
-                              <p className="unit-subtext">Passport: {unit.buyer.passportNumber}</p>
-                            )}
-                            {unit.buyer?.phone && <p className="unit-subtext">Phone: {unit.buyer.phone}</p>}
-                            {unit.contract?.reference && (
-                              <p className="unit-subtext">Contract: {unit.contract.reference}</p>
-                            )}
                           </td>
                           <td>
                             {typeof unit.listPrice === "number" ? (
